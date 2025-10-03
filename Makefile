@@ -37,16 +37,16 @@ test-integration:
 
 # Code quality
 lint:
-	flake8 cordra tests
-	black --check cordra tests
-	isort --check-only cordra tests
+	flake8 src/cordra tests
+	black --check src/cordra tests
+	isort --check-only src/cordra tests
 
 format:
-	black cordra tests
-	isort cordra tests
+	black src/cordra tests
+	isort src/cordra tests
 
 type-check:
-	mypy cordra
+	mypy src/cordra
 
 # Cleaning
 clean:
