@@ -31,3 +31,4 @@ global-exclude .DS_Store
 global-exclude *.egg-info
 global-exclude dist/
 global-exclude build/
+global-exclude DEVELOPMENT.md

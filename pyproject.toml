@@ -54,7 +54,7 @@ docs = [
 
 [project.urls]
 Homepage = "https://github.com/kikirpa/cordra-python"
-Documentation = "https://cordra-python.readthedocs.io/"
+Documentation = "https://github.com/kikirpa/cordra-python#readme"
 Repository = "https://github.com/kikirpa/cordra-python"
 Issues = "https://github.com/kikirpa/cordra-python/issues"
 Changelog = "https://github.com/kikirpa/cordra-python/blob/main/CHANGELOG.md"
