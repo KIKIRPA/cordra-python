@@ -68,15 +68,11 @@ class AuthenticationManager:
             AuthenticationError: If authentication fails
         """
         token_request = TokenRequest(
-            grant_type="password",
-            username=username,
-            password=password
+            grant_type="password", username=username, password=password
         )
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/auth/token',
-            json_data=token_request.to_dict()
+            method="POST", endpoint="/auth/token", json_data=token_request.to_dict()
         )
 
         token_response = TokenResponse.from_dict(response)
@@ -99,13 +95,11 @@ class AuthenticationManager:
         """
         token_request = TokenRequest(
             grant_type="urn:ietf:params:oauth:grant-type:jwt-bearer",
-            assertion=jwt_token
+            assertion=jwt_token,
         )
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/auth/token',
-            json_data=token_request.to_dict()
+            method="POST", endpoint="/auth/token", json_data=token_request.to_dict()
         )
 
         token_response = TokenResponse.from_dict(response)
@@ -134,8 +128,8 @@ class AuthenticationManager:
         )
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/auth/token',
+            method="POST",
+            endpoint="/auth/token",
             json_data=token_request.to_dict()
         )
 
@@ -197,9 +191,9 @@ class AuthenticationManager:
 
         # Use the current token to get a new one (introspection)
         response = self.client._make_request(
-            method='POST',
-            endpoint='/auth/introspect',
-            json_data={'token': self._token}
+            method="POST",
+            endpoint="/auth/introspect",
+            json_data={"token": self._token}
         )
 
         # If introspection succeeds, the token is still valid
@@ -227,9 +221,9 @@ class AuthenticationManager:
             raise AuthenticationError("No token to revoke")
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/auth/revoke',
-            json_data={'token': token_to_revoke}
+            method="POST",
+            endpoint="/auth/revoke",
+            json_data={"token": token_to_revoke}
         )
 
         # Clear current token
@@ -253,9 +247,9 @@ class AuthenticationManager:
             raise AuthenticationError("No active token")
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/auth/introspect',
-            json_data={'token': self._token}
+            method="POST",
+            endpoint="/auth/introspect",
+            json_data={"token": self._token}
         )
 
         self._token_info = TokenResponse.from_dict(response)

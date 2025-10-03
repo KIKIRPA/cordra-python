@@ -165,7 +165,9 @@ class CordraClient:
         """
         return self._impl.get_object(object_id, **kwargs)
 
-    def create_object(self, type: str, content: Dict[str, Any], **kwargs) -> DigitalObject:
+    def create_object(
+        self, type: str, content: Dict[str, Any], **kwargs
+    ) -> DigitalObject:
         """
         Create a new digital object.
 
@@ -182,7 +184,9 @@ class CordraClient:
         """
         return self._impl.create_object(type, content, **kwargs)
 
-    def update_object(self, object_id: str, content: Dict[str, Any], **kwargs) -> DigitalObject:
+    def update_object(
+        self, object_id: str, content: Dict[str, Any], **kwargs
+    ) -> DigitalObject:
         """
         Update an existing digital object.
 
@@ -249,7 +253,9 @@ class CordraClient:
         """
         return self._impl.get_acl(object_id)
 
-    def update_acl(self, object_id: str, readers: List[str] = None, writers: List[str] = None) -> AclInfo:
+    def update_acl(
+        self, object_id: str, readers: List[str] = None, writers: List[str] = None
+    ) -> AclInfo:
         """
         Update access control list for an object.
 
@@ -313,7 +319,9 @@ class CordraClient:
         return self._impl.change_password(new_password)
 
     # Batch operations
-    def batch_upload(self, objects: List[DigitalObject], **kwargs) -> BatchUploadResponse:
+    def batch_upload(
+        self, objects: List[DigitalObject], **kwargs
+    ) -> BatchUploadResponse:
         """
         Upload multiple objects in a batch.
 
@@ -331,7 +339,9 @@ class CordraClient:
         return self._impl.batch_upload(objects, **kwargs)
 
     # Version management
-    def publish_version(self, object_id: str, version_id: str = None, **kwargs) -> VersionInfo:
+    def publish_version(
+        self, object_id: str, version_id: str = None, **kwargs
+    ) -> VersionInfo:
         """
         Publish a new version of an object.
 
@@ -733,16 +743,16 @@ class CordraDoipClient:
 
         # Convert DOIP search response to SearchResponse format
         results = []
-        for item in response.get('results', []):
+        for item in response.get("results", []):
             if isinstance(item, dict):
                 results.append(DigitalObject.from_dict(item))
 
         return SearchResponse(
-            size=response.get('size', 0),
-            page_num=response.get('pageNum', 0),
-            page_size=response.get('pageSize', 0),
+            size=response.get("size", 0),
+            page_num=response.get("pageNum", 0),
+            page_size=response.get("pageSize", 0),
             results=results,
-            facets=response.get('facets', [])
+            facets=response.get("facets", [])
         )
 
     def get_acl(self, object_id: str) -> AclInfo:

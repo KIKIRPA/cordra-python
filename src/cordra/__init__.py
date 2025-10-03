@@ -45,5 +45,5 @@ __all__ = [
     "SearchResponse",
     "CordraError",
     "AuthenticationError",
-    "ObjectNotFoundError"
+    "ObjectNotFoundError",
 ]

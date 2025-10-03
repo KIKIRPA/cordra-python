@@ -23,7 +23,7 @@ class TestDigitalObject:
             type="Document",
             content={"title": "Test"},
             acl={"readers": ["user1"], "writers": ["user1"]},
-            metadata={"createdOn": 1234567890}
+            metadata={"createdOn": 1234567890},
         )
         assert obj.id == "test/123"
         assert obj.type == "Document"

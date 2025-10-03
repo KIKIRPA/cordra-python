@@ -24,28 +24,25 @@ class DigitalObject:
             raise ValueError("Object type is required")
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'DigitalObject':
+    def from_dict(cls, data: dict) -> "DigitalObject":
         """Create DigitalObject from API response."""
         return cls(
-            id=data.get('id'),
-            type=data.get('type', ''),
-            content=data.get('content', {}),
-            acl=data.get('acl'),
-            metadata=data.get('metadata')
+            id=data.get("id"),
+            type=data.get("type", ""),
+            content=data.get("content", {}),
+            acl=data.get("acl"),
+            metadata=data.get("metadata"),
         )
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API requests."""
-        result = {
-            'type': self.type,
-            'content': self.content
-        }
+        result = {"type": self.type, "content": self.content}
         if self.id:
-            result['id'] = self.id
+            result["id"] = self.id
         if self.acl is not None:
-            result['acl'] = self.acl
+            result["acl"] = self.acl
         if self.metadata is not None:
-            result['metadata'] = self.metadata
+            result["metadata"] = self.metadata
         return result
 
 
@@ -66,21 +63,21 @@ class SearchRequest:
         """Convert to dictionary for API requests."""
         result = {}
         if self.query:
-            result['query'] = self.query
+            result["query"] = self.query
         if self.query_json:
-            result['queryJson'] = self.query_json
+            result["queryJson"] = self.query_json
         if self.ids:
-            result['ids'] = self.ids
+            result["ids"] = self.ids
         if self.page_num != 0:
-            result['pageNum'] = self.page_num
+            result["pageNum"] = self.page_num
         if self.page_size is not None:
-            result['pageSize'] = self.page_size
+            result["pageSize"] = self.page_size
         if self.sort_fields:
-            result['sortFields'] = self.sort_fields
+            result["sortFields"] = self.sort_fields
         if self.filter_queries:
-            result['filterQueries'] = self.filter_queries
+            result["filterQueries"] = self.filter_queries
         if self.facets:
-            result['facets'] = self.facets
+            result["facets"] = self.facets
         return result
 
 
@@ -95,19 +92,19 @@ class SearchResponse:
     facets: List[Dict[str, Any]] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'SearchResponse':
+    def from_dict(cls, data: dict) -> "SearchResponse":
         """Create SearchResponse from API response."""
         results = []
-        for item in data.get('results', []):
+        for item in data.get("results", []):
             if isinstance(item, dict):
                 results.append(DigitalObject.from_dict(item))
 
         return cls(
-            size=data.get('size', 0),
-            page_num=data.get('pageNum', 0),
-            page_size=data.get('pageSize', 0),
+            size=data.get("size", 0),
+            page_num=data.get("pageNum", 0),
+            page_size=data.get("pageSize", 0),
             results=results,
-            facets=data.get('facets', [])
+            facets=data.get("facets", []),
         )
 
 
@@ -160,13 +157,13 @@ class TokenResponse:
     def from_dict(cls, data: dict) -> 'TokenResponse':
         """Create TokenResponse from API response."""
         return cls(
-            access_token=data.get('access_token', ''),
-            token_type=data.get('token_type', 'Bearer'),
-            active=data.get('active', False),
-            username=data.get('username'),
-            user_id=data.get('userId'),
-            types_permitted_to_create=data.get('typesPermittedToCreate', []),
-            group_ids=data.get('groupIds', [])
+            access_token=data.get("access_token", ""),
+            token_type=data.get("token_type", "Bearer"),
+            active=data.get("active", False),
+            username=data.get("username"),
+            user_id=data.get("userId"),
+            types_permitted_to_create=data.get("typesPermittedToCreate", []),
+            group_ids=data.get("groupIds", [])
         )
 
 
@@ -181,8 +178,8 @@ class AclInfo:
     def from_dict(cls, data: dict) -> 'AclInfo':
         """Create AclInfo from API response."""
         return cls(
-            readers=data.get('readers', []),
-            writers=data.get('writers', [])
+            readers=data.get("readers", []),
+            writers=data.get("writers", [])
         )
 
     def to_dict(self) -> dict:
@@ -228,7 +225,7 @@ class BatchUploadResponse:
     def from_dict(cls, data: dict) -> 'BatchUploadResponse':
         """Create BatchUploadResponse from API response."""
         results = []
-        for item in data.get('results', []):
+        for item in data.get("results", []):
             if isinstance(item, dict):
                 results.append(BatchUploadResult(
                     position=item.get('position', 0),
@@ -238,7 +235,7 @@ class BatchUploadResponse:
 
         return cls(
             results=results,
-            success=data.get('success', False)
+            success=data.get("success", False)
         )
 
 
@@ -257,10 +254,10 @@ class VersionInfo:
     def from_dict(cls, data: dict) -> 'VersionInfo':
         """Create VersionInfo from API response."""
         return cls(
-            id=data.get('id', ''),
-            type=data.get('type', ''),
-            version_of=data.get('versionOf', ''),
-            published_by=data.get('publishedBy', ''),
-            published_on=data.get('publishedOn', 0),
-            is_tip=data.get('isTip', False)
+            id=data.get("id", ""),
+            type=data.get("type", ""),
+            version_of=data.get("versionOf", ""),
+            published_by=data.get("publishedBy", ""),
+            published_on=data.get("publishedOn", 0),
+            is_tip=data.get("isTip", False)
         )
