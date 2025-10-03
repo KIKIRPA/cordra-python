@@ -9,8 +9,14 @@ import requests
 from typing import Dict, List, Optional, Any, Union
 from urllib.parse import urljoin, urlencode
 from .models import (
-    DigitalObject, SearchRequest, SearchResponse, TokenResponse,
-    AclInfo, MethodCallRequest, BatchUploadResponse, VersionInfo
+    DigitalObject,
+    SearchRequest,
+    SearchResponse,
+    TokenResponse,
+    AclInfo,
+    MethodCallRequest,
+    BatchUploadResponse,
+    VersionInfo,
 )
 from .auth import AuthenticationManager
 from .exceptions import CordraError, handle_http_error
@@ -41,9 +47,9 @@ class CordraClient:
         base_url: str,
         api_type: str = "rest",
         verify_ssl: bool = True,
-        timeout: int = 30
+        timeout: int = 30,
     ):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.api_type = api_type.lower()
         self.verify_ssl = verify_ssl
         self.timeout = timeout
@@ -67,10 +73,10 @@ class CordraClient:
         json_data: Optional[Dict[str, Any]] = None,
         data: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Make HTTP request with proper error handling."""
-        url = urljoin(self.base_url + '/', endpoint.lstrip('/'))
+        url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
 
         # Add authentication headers if available
         if self.auth.token:
@@ -83,10 +89,9 @@ class CordraClient:
         # Default headers
         if not headers:
             headers = {}
-        headers.update({
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        })
+        headers.update(
+            {"Content-Type": "application/json", "Accept": "application/json"}
+        )
 
         try:
             response = requests.request(
@@ -98,7 +103,7 @@ class CordraClient:
                 headers=headers,
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                **kwargs
+                **kwargs,
             )
 
             # Handle HTTP errors
@@ -280,7 +285,7 @@ class CordraClient:
         type: str = None,
         params: Dict[str, Any] = None,
         attributes: Dict[str, Any] = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Call a type method on an object or type.
@@ -300,7 +305,9 @@ class CordraClient:
             >>> result = client.call_method("extractName", object_id="test/123")
             >>> result = client.call_method("countObjects", type="Document")
         """
-        return self._impl.call_method(method, object_id, type, params, attributes, **kwargs)
+        return self._impl.call_method(
+            method, object_id, type, params, attributes, **kwargs
+        )
 
     # Password management
     def change_password(self, new_password: str) -> bool:

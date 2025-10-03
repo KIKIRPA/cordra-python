@@ -107,7 +107,9 @@ class AuthenticationManager:
 
         return token_response
 
-    def authenticate_with_private_key(self, user_id: str, private_key: Dict[str, Any]) -> TokenResponse:
+    def authenticate_with_private_key(
+        self, user_id: str, private_key: Dict[str, Any]
+    ) -> TokenResponse:
         """
         Authenticate using RSA private key.
 
@@ -124,13 +126,11 @@ class AuthenticationManager:
         token_request = TokenRequest(
             grant_type="password",  # Private key auth uses password grant type
             user_id=user_id,
-            private_key=private_key
+            private_key=private_key,
         )
 
         response = self.client._make_request(
-            method="POST",
-            endpoint="/auth/token",
-            json_data=token_request.to_dict()
+            method="POST", endpoint="/auth/token", json_data=token_request.to_dict()
         )
 
         token_response = TokenResponse.from_dict(response)
@@ -155,12 +155,16 @@ class AuthenticationManager:
             AuthenticationError: If authentication fails
             ConfigurationError: If invalid parameters provided
         """
-        if 'username' in kwargs and 'password' in kwargs:
-            return self.authenticate_with_password(kwargs['username'], kwargs['password'])
-        elif 'jwt_token' in kwargs:
-            return self.authenticate_with_jwt(kwargs['jwt_token'])
-        elif 'user_id' in kwargs and 'private_key' in kwargs:
-            return self.authenticate_with_private_key(kwargs['user_id'], kwargs['private_key'])
+        if "username" in kwargs and "password" in kwargs:
+            return self.authenticate_with_password(
+                kwargs["username"], kwargs["password"]
+            )
+        elif "jwt_token" in kwargs:
+            return self.authenticate_with_jwt(kwargs["jwt_token"])
+        elif "user_id" in kwargs and "private_key" in kwargs:
+            return self.authenticate_with_private_key(
+                kwargs["user_id"], kwargs["private_key"]
+            )
         else:
             raise ConfigurationError(
                 "Invalid authentication parameters. Provide either "
@@ -191,9 +195,7 @@ class AuthenticationManager:
 
         # Use the current token to get a new one (introspection)
         response = self.client._make_request(
-            method="POST",
-            endpoint="/auth/introspect",
-            json_data={"token": self._token}
+            method="POST", endpoint="/auth/introspect", json_data={"token": self._token}
         )
 
         # If introspection succeeds, the token is still valid
@@ -221,9 +223,7 @@ class AuthenticationManager:
             raise AuthenticationError("No token to revoke")
 
         response = self.client._make_request(
-            method="POST",
-            endpoint="/auth/revoke",
-            json_data={"token": token_to_revoke}
+            method="POST", endpoint="/auth/revoke", json_data={"token": token_to_revoke}
         )
 
         # Clear current token
@@ -231,7 +231,7 @@ class AuthenticationManager:
         self._token_info = None
         self._token_expires_at = None
 
-        return response.get('active', False) == False
+        return response.get("active", False) == False
 
     def get_token_info(self) -> TokenResponse:
         """
@@ -247,9 +247,7 @@ class AuthenticationManager:
             raise AuthenticationError("No active token")
 
         response = self.client._make_request(
-            method="POST",
-            endpoint="/auth/introspect",
-            json_data={"token": self._token}
+            method="POST", endpoint="/auth/introspect", json_data={"token": self._token}
         )
 
         self._token_info = TokenResponse.from_dict(response)
@@ -264,7 +262,9 @@ class AuthenticationManager:
                     self.refresh_token()
                 except AuthenticationError:
                     # Refresh failed, need new authentication
-                    raise AuthenticationError("Token expired and could not be refreshed")
+                    raise AuthenticationError(
+                        "Token expired and could not be refreshed"
+                    )
             else:
                 raise AuthenticationError("Not authenticated")
 

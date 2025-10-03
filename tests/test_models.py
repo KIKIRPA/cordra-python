@@ -49,7 +49,7 @@ class TestDigitalObject:
             id="test/123",
             type="Document",
             content={"title": "Test"},
-            acl={"readers": ["user1"]}
+            acl={"readers": ["user1"]},
         )
         data = obj.to_dict()
         assert data["id"] == "test/123"
@@ -62,7 +62,7 @@ class TestDigitalObject:
             "type": "Document",
             "content": {"title": "Test"},
             "acl": {"readers": ["user1"]},
-            "metadata": {"createdOn": 1234567890}
+            "metadata": {"createdOn": 1234567890},
         }
         obj = DigitalObject.from_dict(data)
         assert obj.id == "test/123"
@@ -92,7 +92,7 @@ class TestSearchRequest:
             page_size=10,
             sort_fields=[{"name": "title", "reverse": False}],
             filter_queries=["type:Document"],
-            facets=[{"field": "author"}]
+            facets=[{"field": "author"}],
         )
         assert req.query == "test query"
         assert req.query_json == {"query": "title:test"}
@@ -133,7 +133,7 @@ class TestTokenResponse:
             username="testuser",
             user_id="test/123",
             types_permitted_to_create=["Document", "User"],
-            group_ids=["group1", "group2"]
+            group_ids=["group1", "group2"],
         )
         assert resp.access_token == "test_token"
         assert resp.token_type == "Bearer"
@@ -152,7 +152,7 @@ class TestTokenResponse:
             "username": "testuser",
             "userId": "test/123",
             "typesPermittedToCreate": ["Document"],
-            "groupIds": ["group1"]
+            "groupIds": ["group1"],
         }
         resp = TokenResponse.from_dict(data)
         assert resp.access_token == "test_token"

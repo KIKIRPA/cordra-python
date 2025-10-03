@@ -116,28 +116,31 @@ class TokenRequest:
     username: Optional[str] = None
     password: Optional[str] = None
     assertion: Optional[str] = None  # JWT token
-    user_id: Optional[str] = None    # For private key auth
+    user_id: Optional[str] = None  # For private key auth
     private_key: Optional[Dict[str, Any]] = None  # RSA JWK
 
     def __post_init__(self):
         if self.grant_type == "password" and not (self.username and self.password):
             raise ValueError("Username and password required for password grant")
-        elif self.grant_type == "urn:ietf:params:oauth:grant-type:jwt-bearer" and not self.assertion:
+        elif (
+            self.grant_type == "urn:ietf:params:oauth:grant-type:jwt-bearer"
+            and not self.assertion
+        ):
             raise ValueError("JWT assertion required for JWT bearer grant")
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API requests."""
         result = {"grant_type": self.grant_type}
         if self.username:
-            result['username'] = self.username
+            result["username"] = self.username
         if self.password:
-            result['password'] = self.password
+            result["password"] = self.password
         if self.assertion:
-            result['assertion'] = self.assertion
+            result["assertion"] = self.assertion
         if self.user_id:
-            result['userId'] = self.user_id
+            result["userId"] = self.user_id
         if self.private_key:
-            result['privateKey'] = self.private_key
+            result["privateKey"] = self.private_key
         return result
 
 
@@ -154,7 +157,7 @@ class TokenResponse:
     group_ids: List[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'TokenResponse':
+    def from_dict(cls, data: dict) -> "TokenResponse":
         """Create TokenResponse from API response."""
         return cls(
             access_token=data.get("access_token", ""),
@@ -163,7 +166,7 @@ class TokenResponse:
             username=data.get("username"),
             user_id=data.get("userId"),
             types_permitted_to_create=data.get("typesPermittedToCreate", []),
-            group_ids=data.get("groupIds", [])
+            group_ids=data.get("groupIds", []),
         )
 
 
@@ -175,19 +178,13 @@ class AclInfo:
     writers: List[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'AclInfo':
+    def from_dict(cls, data: dict) -> "AclInfo":
         """Create AclInfo from API response."""
-        return cls(
-            readers=data.get("readers", []),
-            writers=data.get("writers", [])
-        )
+        return cls(readers=data.get("readers", []), writers=data.get("writers", []))
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API requests."""
-        return {
-            'readers': self.readers,
-            'writers': self.writers
-        }
+        return {"readers": self.readers, "writers": self.writers}
 
 
 @dataclass
@@ -199,10 +196,7 @@ class MethodCallRequest:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API requests."""
-        return {
-            'params': self.params,
-            'attributes': self.attributes
-        }
+        return {"params": self.params, "attributes": self.attributes}
 
 
 @dataclass
@@ -222,21 +216,20 @@ class BatchUploadResponse:
     success: bool = False
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'BatchUploadResponse':
+    def from_dict(cls, data: dict) -> "BatchUploadResponse":
         """Create BatchUploadResponse from API response."""
         results = []
         for item in data.get("results", []):
             if isinstance(item, dict):
-                results.append(BatchUploadResult(
-                    position=item.get('position', 0),
-                    response_code=item.get('responseCode', 0),
-                    response=item.get('response', {})
-                ))
+                results.append(
+                    BatchUploadResult(
+                        position=item.get("position", 0),
+                        response_code=item.get("responseCode", 0),
+                        response=item.get("response", {}),
+                    )
+                )
 
-        return cls(
-            results=results,
-            success=data.get("success", False)
-        )
+        return cls(results=results, success=data.get("success", False))
 
 
 @dataclass
@@ -251,7 +244,7 @@ class VersionInfo:
     is_tip: bool = False
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'VersionInfo':
+    def from_dict(cls, data: dict) -> "VersionInfo":
         """Create VersionInfo from API response."""
         return cls(
             id=data.get("id", ""),
@@ -259,5 +252,5 @@ class VersionInfo:
             version_of=data.get("versionOf", ""),
             published_by=data.get("publishedBy", ""),
             published_on=data.get("publishedOn", 0),
-            is_tip=data.get("isTip", False)
+            is_tip=data.get("isTip", False),
         )
