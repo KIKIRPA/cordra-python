@@ -3,7 +3,8 @@ Tests for cordra.models module.
 """
 
 import pytest
-from cordra.models import DigitalObject, SearchRequest, TokenResponse, AclInfo
+
+from cordra.models import AclInfo, DigitalObject, SearchRequest, TokenResponse
 
 
 class TestDigitalObject:

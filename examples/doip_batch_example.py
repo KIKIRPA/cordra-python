@@ -11,13 +11,15 @@ This script demonstrates using the DOIP API for:
 
 import os
 import sys
+
 from cordra import CordraClient, DigitalObject
+
 
 def main():
     # Get Cordra server URL from environment or use default
-    cordra_url = os.getenv('CORDRA_URL', 'https://cordra.kikirpa.be')
-    username = os.getenv('CORDRA_USERNAME')
-    password = os.getenv('CORDRA_PASSWORD')
+    cordra_url = os.getenv("CORDRA_URL", "https://cordra.kikirpa.be")
+    username = os.getenv("CORDRA_USERNAME")
+    password = os.getenv("CORDRA_PASSWORD")
 
     if not username or not password:
         print("Please set CORDRA_USERNAME and CORDRA_PASSWORD environment variables")
@@ -59,8 +61,8 @@ def main():
                     "title": f"Batch Document {i+1}",
                     "description": f"This is document {i+1} created in batch",
                     "category": "batch_example",
-                    "index": i
-                }
+                    "index": i,
+                },
             )
             objects.append(obj)
 
@@ -69,7 +71,7 @@ def main():
         batch_result = client.batch_upload(
             objects,
             failFast=False,  # Continue on errors
-            parallel=True    # Process in parallel
+            parallel=True,  # Process in parallel
         )
 
         print(f"✓ Batch upload completed: {batch_result.success}")
@@ -77,7 +79,7 @@ def main():
 
         # Get the first successfully created object
         if batch_result.results and batch_result.results[0].response_code == 200:
-            first_obj_id = batch_result.results[0].response['id']
+            first_obj_id = batch_result.results[0].response["id"]
             print(f"\nWorking with first created object: {first_obj_id}")
 
             # Get object details
@@ -90,7 +92,7 @@ def main():
                 version = client.publish_version(
                     object_id=first_obj_id,
                     version_id=f"v1.0.{obj.content['index']}",
-                    clonePayloads=False
+                    clonePayloads=False,
                 )
                 print(f"✓ Published version: {version.id}")
             except Exception as e:
@@ -110,9 +112,13 @@ def main():
             print("\nGetting object relationships...")
             try:
                 relationships = client.get_relationships(first_obj_id)
-                print(f"✓ Found {len(relationships.get('results', {}))} related objects")
+                print(
+                    f"✓ Found {len(relationships.get('results', {}))} related objects"
+                )
 
-                for obj_id, obj_data in list(relationships.get('results', {}).items())[:3]:
+                for obj_id, obj_data in list(relationships.get("results", {}).items())[
+                    :3
+                ]:
                     print(f"  - Related: {obj_id}")
             except Exception as e:
                 print(f"  (Relationship queries not available: {e})")
@@ -121,7 +127,7 @@ def main():
         print("\nCleaning up...")
         for result in batch_result.results:
             if result.response_code == 200:
-                obj_id = result.response['id']
+                obj_id = result.response["id"]
                 try:
                     client.delete_object(obj_id)
                     print(f"✓ Deleted object: {obj_id}")
@@ -133,8 +139,10 @@ def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

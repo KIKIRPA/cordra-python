@@ -5,21 +5,23 @@ Provides CordraClient class that supports both REST and DOIP APIs.
 """
 
 import json
+from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
+
 import requests
-from typing import Dict, List, Optional, Any, Union
-from urllib.parse import urljoin, urlencode
+
+from .auth import AuthenticationManager
+from .exceptions import CordraError, handle_http_error
 from .models import (
+    AclInfo,
+    BatchUploadResponse,
     DigitalObject,
+    MethodCallRequest,
     SearchRequest,
     SearchResponse,
     TokenResponse,
-    AclInfo,
-    MethodCallRequest,
-    BatchUploadResponse,
     VersionInfo,
 )
-from .auth import AuthenticationManager
-from .exceptions import CordraError, handle_http_error
 
 
 class CordraClient:
@@ -273,7 +275,9 @@ class CordraClient:
             AclInfo instance
 
         Example:
-            >>> acl = client.update_acl("test/123", readers=["user1"], writers=["user1", "user2"])
+            >>> acl = client.update_acl(
+            ...     "test/123", readers=["user1"], writers=["user1", "user2"]
+            ... )
         """
         return self._impl.update_acl(object_id, readers, writers)
 
@@ -435,71 +439,72 @@ class CordraRestClient:
     def get_object(self, object_id: str, **kwargs) -> DigitalObject:
         """Get object via REST API."""
         params = {}
-        if 'jsonPointer' in kwargs:
-            params['jsonPointer'] = kwargs['jsonPointer']
-        if 'filter' in kwargs:
-            params['filter'] = kwargs['filter']
-        if 'payload' in kwargs:
-            params['payload'] = kwargs['payload']
-        if 'pretty' in kwargs:
-            params['pretty'] = kwargs['pretty']
-        if 'text' in kwargs:
-            params['text'] = kwargs['text']
-        if 'disposition' in kwargs:
-            params['disposition'] = kwargs['disposition']
-        if 'full' in kwargs:
-            params['full'] = kwargs['full']
+        if "jsonPointer" in kwargs:
+            params["jsonPointer"] = kwargs["jsonPointer"]
+        if "filter" in kwargs:
+            params["filter"] = kwargs["filter"]
+        if "payload" in kwargs:
+            params["payload"] = kwargs["payload"]
+        if "pretty" in kwargs:
+            params["pretty"] = kwargs["pretty"]
+        if "text" in kwargs:
+            params["text"] = kwargs["text"]
+        if "disposition" in kwargs:
+            params["disposition"] = kwargs["disposition"]
+        if "full" in kwargs:
+            params["full"] = kwargs["full"]
 
         response = self.client._make_request(
-            method='GET',
-            endpoint=f'/objects/{object_id}',
-            params=params
+            method="GET", endpoint=f"/objects/{object_id}", params=params
         )
 
         return DigitalObject.from_dict(response)
 
-    def create_object(self, type: str, content: Dict[str, Any], **kwargs) -> DigitalObject:
+    def create_object(
+        self, type: str, content: Dict[str, Any], **kwargs
+    ) -> DigitalObject:
         """Create object via REST API."""
-        params = {'type': type}
-        if 'dryRun' in kwargs:
-            params['dryRun'] = kwargs['dryRun']
-        if 'suffix' in kwargs:
-            params['suffix'] = kwargs['suffix']
-        if 'handle' in kwargs:
-            params['handle'] = kwargs['handle']
-        if 'full' in kwargs:
-            params['full'] = kwargs['full']
+        params = {"type": type}
+        if "dryRun" in kwargs:
+            params["dryRun"] = kwargs["dryRun"]
+        if "suffix" in kwargs:
+            params["suffix"] = kwargs["suffix"]
+        if "handle" in kwargs:
+            params["handle"] = kwargs["handle"]
+        if "full" in kwargs:
+            params["full"] = kwargs["full"]
 
         obj = DigitalObject(type=type, content=content)
         response = self.client._make_request(
-            method='POST',
-            endpoint='/objects',
-            params=params,
-            json_data=obj.to_dict()
+            method="POST", endpoint="/objects", params=params, json_data=obj.to_dict()
         )
 
         return DigitalObject.from_dict(response)
 
-    def update_object(self, object_id: str, content: Dict[str, Any], **kwargs) -> DigitalObject:
+    def update_object(
+        self, object_id: str, content: Dict[str, Any], **kwargs
+    ) -> DigitalObject:
         """Update object via REST API."""
         params = {}
-        if 'dryRun' in kwargs:
-            params['dryRun'] = kwargs['dryRun']
-        if 'type' in kwargs:
-            params['type'] = kwargs['type']
-        if 'payloadToDelete' in kwargs:
-            params['payloadToDelete'] = kwargs['payloadToDelete']
-        if 'jsonPointer' in kwargs:
-            params['jsonPointer'] = kwargs['jsonPointer']
-        if 'full' in kwargs:
-            params['full'] = kwargs['full']
+        if "dryRun" in kwargs:
+            params["dryRun"] = kwargs["dryRun"]
+        if "type" in kwargs:
+            params["type"] = kwargs["type"]
+        if "payloadToDelete" in kwargs:
+            params["payloadToDelete"] = kwargs["payloadToDelete"]
+        if "jsonPointer" in kwargs:
+            params["jsonPointer"] = kwargs["jsonPointer"]
+        if "full" in kwargs:
+            params["full"] = kwargs["full"]
 
-        obj = DigitalObject(id=object_id, type="", content=content)  # Type not needed for update
+        obj = DigitalObject(
+            id=object_id, type="", content=content
+        )  # Type not needed for update
         response = self.client._make_request(
-            method='PUT',
-            endpoint=f'/objects/{object_id}',
+            method="PUT",
+            endpoint=f"/objects/{object_id}",
             params=params,
-            json_data=obj.to_dict()
+            json_data=obj.to_dict(),
         )
 
         return DigitalObject.from_dict(response)
@@ -507,13 +512,11 @@ class CordraRestClient:
     def delete_object(self, object_id: str, **kwargs) -> bool:
         """Delete object via REST API."""
         params = {}
-        if 'jsonPointer' in kwargs:
-            params['jsonPointer'] = kwargs['jsonPointer']
+        if "jsonPointer" in kwargs:
+            params["jsonPointer"] = kwargs["jsonPointer"]
 
         self.client._make_request(
-            method='DELETE',
-            endpoint=f'/objects/{object_id}',
-            params=params
+            method="DELETE", endpoint=f"/objects/{object_id}", params=params
         )
         return True
 
@@ -521,46 +524,42 @@ class CordraRestClient:
         """Search via REST API."""
         if query:
             # Use GET method for simple queries
-            params = {'query': query}
-            if 'ids' in kwargs:
-                params['ids'] = kwargs['ids']
-            if 'pageNum' in kwargs:
-                params['pageNum'] = kwargs['pageNum']
-            if 'pageSize' in kwargs:
-                params['pageSize'] = kwargs['pageSize']
-            if 'sortFields' in kwargs:
-                params['sortFields'] = kwargs['sortFields']
-            if 'full' in kwargs:
-                params['full'] = kwargs['full']
-            if 'filter' in kwargs:
-                params['filter'] = kwargs['filter']
-            if 'filterQueries' in kwargs:
-                params['filterQueries'] = kwargs['filterQueries']
-            if 'facets' in kwargs:
-                params['facets'] = kwargs['facets']
+            params = {"query": query}
+            if "ids" in kwargs:
+                params["ids"] = kwargs["ids"]
+            if "pageNum" in kwargs:
+                params["pageNum"] = kwargs["pageNum"]
+            if "pageSize" in kwargs:
+                params["pageSize"] = kwargs["pageSize"]
+            if "sortFields" in kwargs:
+                params["sortFields"] = kwargs["sortFields"]
+            if "full" in kwargs:
+                params["full"] = kwargs["full"]
+            if "filter" in kwargs:
+                params["filter"] = kwargs["filter"]
+            if "filterQueries" in kwargs:
+                params["filterQueries"] = kwargs["filterQueries"]
+            if "facets" in kwargs:
+                params["facets"] = kwargs["facets"]
 
             response = self.client._make_request(
-                method='GET',
-                endpoint='/search',
-                params=params
+                method="GET", endpoint="/search", params=params
             )
         else:
             # Use POST method for complex queries
             search_request = SearchRequest(
-                query=kwargs.get('query', ''),
-                query_json=kwargs.get('queryJson'),
-                ids=kwargs.get('ids', False),
-                page_num=kwargs.get('pageNum', 0),
-                page_size=kwargs.get('pageSize'),
-                sort_fields=kwargs.get('sortFields'),
-                filter_queries=kwargs.get('filterQueries'),
-                facets=kwargs.get('facets')
+                query=kwargs.get("query", ""),
+                query_json=kwargs.get("queryJson"),
+                ids=kwargs.get("ids", False),
+                page_num=kwargs.get("pageNum", 0),
+                page_size=kwargs.get("pageSize"),
+                sort_fields=kwargs.get("sortFields"),
+                filter_queries=kwargs.get("filterQueries"),
+                facets=kwargs.get("facets"),
             )
 
             response = self.client._make_request(
-                method='POST',
-                endpoint='/search',
-                json_data=search_request.to_dict()
+                method="POST", endpoint="/search", json_data=search_request.to_dict()
             )
 
         return SearchResponse.from_dict(response)
@@ -568,23 +567,22 @@ class CordraRestClient:
     def get_acl(self, object_id: str) -> AclInfo:
         """Get ACL via REST API."""
         response = self.client._make_request(
-            method='GET',
-            endpoint=f'/acls/{object_id}'
+            method="GET", endpoint=f"/acls/{object_id}"
         )
         return AclInfo.from_dict(response)
 
-    def update_acl(self, object_id: str, readers: List[str] = None, writers: List[str] = None) -> AclInfo:
+    def update_acl(
+        self, object_id: str, readers: List[str] = None, writers: List[str] = None
+    ) -> AclInfo:
         """Update ACL via REST API."""
         acl_data = {}
         if readers is not None:
-            acl_data['readers'] = readers
+            acl_data["readers"] = readers
         if writers is not None:
-            acl_data['writers'] = writers
+            acl_data["writers"] = writers
 
         response = self.client._make_request(
-            method='PUT',
-            endpoint=f'/acls/{object_id}',
-            json_data=acl_data
+            method="PUT", endpoint=f"/acls/{object_id}", json_data=acl_data
         )
         return AclInfo.from_dict(response)
 
@@ -595,39 +593,37 @@ class CordraRestClient:
         type: str = None,
         params: Dict[str, Any] = None,
         attributes: Dict[str, Any] = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """Call method via REST API."""
-        request_params = {'method': method}
+        request_params = {"method": method}
 
         if object_id:
-            request_params['objectId'] = object_id
+            request_params["objectId"] = object_id
         elif type:
-            request_params['type'] = type
+            request_params["type"] = type
         else:
             raise ValueError("Either object_id or type must be specified")
 
         if attributes:
-            request_params['attributes'] = json.dumps(attributes)
+            request_params["attributes"] = json.dumps(attributes)
 
         # Use POST for method calls with parameters
         if params:
             request_data = MethodCallRequest(params=params, attributes=attributes or {})
             response = self.client._make_request(
-                method='POST',
-                endpoint='/call',
+                method="POST",
+                endpoint="/call",
                 params=request_params,
-                json_data=request_data.to_dict()
+                json_data=request_data.to_dict(),
             )
         else:
             # Use GET for simple method calls
             if attributes:
-                request_params['attributes'] = json.dumps(attributes)
+                request_params["attributes"] = json.dumps(attributes)
 
             response = self.client._make_request(
-                method='GET',
-                endpoint='/call',
-                params=request_params
+                method="GET", endpoint="/call", params=request_params
             )
 
         return response
@@ -635,17 +631,20 @@ class CordraRestClient:
     def change_password(self, new_password: str) -> bool:
         """Change password via REST API."""
         self.client._make_request(
-            method='PUT',
-            endpoint='/users/this/password',
-            data=new_password
+            method="PUT", endpoint="/users/this/password", data=new_password
         )
         return True
 
-    def batch_upload(self, objects: List[DigitalObject], **kwargs) -> BatchUploadResponse:
-        """Batch upload via REST API (not directly supported, use individual creates)."""
+    def batch_upload(
+        self, objects: List[DigitalObject], **kwargs
+    ) -> BatchUploadResponse:
+        """Batch upload via REST API (not directly supported, use individual
+        creates)."""
         raise NotImplementedError("Batch upload not available in REST API")
 
-    def publish_version(self, object_id: str, version_id: str = None, **kwargs) -> VersionInfo:
+    def publish_version(
+        self, object_id: str, version_id: str = None, **kwargs
+    ) -> VersionInfo:
         """Publish version via REST API (not directly supported)."""
         raise NotImplementedError("Version publishing not available in REST API")
 
@@ -674,78 +673,76 @@ class CordraDoipClient:
 
     def get_object(self, object_id: str, **kwargs) -> DigitalObject:
         """Get object via DOIP API."""
-        params = {'targetId': object_id}
-        if 'element' in kwargs:
-            params['attributes.element'] = kwargs['element']
+        params = {"targetId": object_id}
+        if "element" in kwargs:
+            params["attributes.element"] = kwargs["element"]
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.Retrieve',
-            params=params
+            method="POST", endpoint="/0.DOIP/Op.Retrieve", params=params
         )
 
         return DigitalObject.from_dict(response)
 
-    def create_object(self, type: str, content: Dict[str, Any], **kwargs) -> DigitalObject:
+    def create_object(
+        self, type: str, content: Dict[str, Any], **kwargs
+    ) -> DigitalObject:
         """Create object via DOIP API."""
         obj = DigitalObject(type=type, content=content)
-        params = {'targetId': 'service'}
+        params = {"targetId": "service"}
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.Create',
+            method="POST",
+            endpoint="/0.DOIP/Op.Create",
             params=params,
-            json_data=obj.to_dict()
+            json_data=obj.to_dict(),
         )
 
         return DigitalObject.from_dict(response)
 
-    def update_object(self, object_id: str, content: Dict[str, Any], **kwargs) -> DigitalObject:
+    def update_object(
+        self, object_id: str, content: Dict[str, Any], **kwargs
+    ) -> DigitalObject:
         """Update object via DOIP API."""
         obj = DigitalObject(id=object_id, type="", content=content)
-        params = {'targetId': object_id}
+        params = {"targetId": object_id}
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.Update',
+            method="POST",
+            endpoint="/0.DOIP/Op.Update",
             params=params,
-            json_data=obj.to_dict()
+            json_data=obj.to_dict(),
         )
 
         return DigitalObject.from_dict(response)
 
     def delete_object(self, object_id: str, **kwargs) -> bool:
         """Delete object via DOIP API."""
-        params = {'targetId': object_id}
+        params = {"targetId": object_id}
 
         self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.Delete',
-            params=params
+            method="POST", endpoint="/0.DOIP/Op.Delete", params=params
         )
         return True
 
     def search(self, query: str = None, **kwargs) -> SearchResponse:
         """Search via DOIP API."""
-        params = {'targetId': 'service', 'query': query or kwargs.get('query', '')}
+        params = {"targetId": "service", "query": query or kwargs.get("query", "")}
 
-        if 'pageNum' in kwargs:
-            params['pageNum'] = kwargs['pageNum']
-        if 'pageSize' in kwargs:
-            params['pageSize'] = kwargs['pageSize']
-        if 'sortFields' in kwargs:
-            params['sortFields'] = kwargs['sortFields']
-        if 'type' in kwargs:
-            params['type'] = kwargs['type']
-        if 'facets' in kwargs:
-            params['facets'] = json.dumps(kwargs['facets'])
-        if 'filterQueries' in kwargs:
-            params['filterQueries'] = json.dumps(kwargs['filterQueries'])
+        if "pageNum" in kwargs:
+            params["pageNum"] = kwargs["pageNum"]
+        if "pageSize" in kwargs:
+            params["pageSize"] = kwargs["pageSize"]
+        if "sortFields" in kwargs:
+            params["sortFields"] = kwargs["sortFields"]
+        if "type" in kwargs:
+            params["type"] = kwargs["type"]
+        if "facets" in kwargs:
+            params["facets"] = json.dumps(kwargs["facets"])
+        if "filterQueries" in kwargs:
+            params["filterQueries"] = json.dumps(kwargs["filterQueries"])
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.Search',
-            params=params
+            method="POST", endpoint="/0.DOIP/Op.Search", params=params
         )
 
         # Convert DOIP search response to SearchResponse format
@@ -759,14 +756,16 @@ class CordraDoipClient:
             page_num=response.get("pageNum", 0),
             page_size=response.get("pageSize", 0),
             results=results,
-            facets=response.get("facets", [])
+            facets=response.get("facets", []),
         )
 
     def get_acl(self, object_id: str) -> AclInfo:
         """Get ACL via DOIP API (not directly supported)."""
         raise NotImplementedError("ACL operations not available in DOIP API")
 
-    def update_acl(self, object_id: str, readers: List[str] = None, writers: List[str] = None) -> AclInfo:
+    def update_acl(
+        self, object_id: str, readers: List[str] = None, writers: List[str] = None
+    ) -> AclInfo:
         """Update ACL via DOIP API (not directly supported)."""
         raise NotImplementedError("ACL operations not available in DOIP API")
 
@@ -777,71 +776,71 @@ class CordraDoipClient:
         type: str = None,
         params: Dict[str, Any] = None,
         attributes: Dict[str, Any] = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """Call method via DOIP API (not directly supported)."""
         raise NotImplementedError("Type method calls not available in DOIP API")
 
     def change_password(self, new_password: str) -> bool:
         """Change password via DOIP API."""
-        params = {'targetId': 'service'}
+        params = {"targetId": "service"}
 
         self.client._make_request(
-            method='POST',
-            endpoint='/20.DOIP/Op.ChangePassword',
+            method="POST",
+            endpoint="/20.DOIP/Op.ChangePassword",
             params=params,
-            json_data={'password': new_password}
+            json_data={"password": new_password},
         )
         return True
 
-    def batch_upload(self, objects: List[DigitalObject], **kwargs) -> BatchUploadResponse:
+    def batch_upload(
+        self, objects: List[DigitalObject], **kwargs
+    ) -> BatchUploadResponse:
         """Batch upload via DOIP API."""
-        params = {'targetId': 'service'}
+        params = {"targetId": "service"}
 
-        if 'format' in kwargs:
-            params['format'] = kwargs['format']
-        if 'failFast' in kwargs:
-            params['failFast'] = kwargs['failFast']
-        if 'parallel' in kwargs:
-            params['parallel'] = kwargs['parallel']
+        if "format" in kwargs:
+            params["format"] = kwargs["format"]
+        if "failFast" in kwargs:
+            params["failFast"] = kwargs["failFast"]
+        if "parallel" in kwargs:
+            params["parallel"] = kwargs["parallel"]
 
         # Convert objects to DOIP format
         objects_data = [obj.to_dict() for obj in objects]
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/20.DOIP/Op.BatchUpload',
+            method="POST",
+            endpoint="/20.DOIP/Op.BatchUpload",
             params=params,
-            json_data=objects_data
+            json_data=objects_data,
         )
 
         return BatchUploadResponse.from_dict(response)
 
-    def publish_version(self, object_id: str, version_id: str = None, **kwargs) -> VersionInfo:
+    def publish_version(
+        self, object_id: str, version_id: str = None, **kwargs
+    ) -> VersionInfo:
         """Publish version via DOIP API."""
-        params = {'targetId': object_id}
+        params = {"targetId": object_id}
 
         if version_id:
-            params['versionId'] = version_id
-        if 'clonePayloads' in kwargs:
-            params['clonePayloads'] = kwargs['clonePayloads']
+            params["versionId"] = version_id
+        if "clonePayloads" in kwargs:
+            params["clonePayloads"] = kwargs["clonePayloads"]
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/20.DOIP/Op.Versions.Publish',
-            params=params
+            method="POST", endpoint="/20.DOIP/Op.Versions.Publish", params=params
         )
 
         return VersionInfo.from_dict(response)
 
     def get_versions(self, object_id: str) -> List[VersionInfo]:
         """Get versions via DOIP API."""
-        params = {'targetId': object_id}
+        params = {"targetId": object_id}
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/20.DOIP/Op.Versions.Get',
-            params=params
+            method="POST", endpoint="/20.DOIP/Op.Versions.Get", params=params
         )
 
         versions = []
@@ -852,39 +851,33 @@ class CordraDoipClient:
 
     def get_relationships(self, object_id: str, **kwargs) -> Dict[str, Any]:
         """Get relationships via DOIP API."""
-        params = {'targetId': object_id}
+        params = {"targetId": object_id}
 
-        if 'outboundOnly' in kwargs:
-            params['outboundOnly'] = kwargs['outboundOnly']
+        if "outboundOnly" in kwargs:
+            params["outboundOnly"] = kwargs["outboundOnly"]
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/20.DOIP/Op.Relationships.Get',
-            params=params
+            method="POST", endpoint="/20.DOIP/Op.Relationships.Get", params=params
         )
 
         return response
 
     def hello(self) -> Dict[str, Any]:
         """Hello via DOIP API."""
-        params = {'targetId': 'service'}
+        params = {"targetId": "service"}
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.Hello',
-            params=params
+            method="POST", endpoint="/0.DOIP/Op.Hello", params=params
         )
 
         return response
 
     def list_operations(self, target_id: str = "service") -> List[str]:
         """List operations via DOIP API."""
-        params = {'targetId': target_id}
+        params = {"targetId": target_id}
 
         response = self.client._make_request(
-            method='POST',
-            endpoint='/0.DOIP/Op.ListOperations',
-            params=params
+            method="POST", endpoint="/0.DOIP/Op.ListOperations", params=params
         )
 
         return response

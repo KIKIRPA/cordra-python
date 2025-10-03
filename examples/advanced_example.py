@@ -10,22 +10,28 @@ This script demonstrates advanced features:
 - ACL management
 """
 
+import json
 import os
 import sys
-import json
+
 from cordra import (
-    CordraClient, DigitalObject, SearchRequest,
-    CordraError, AuthenticationError, ObjectNotFoundError
+    AuthenticationError,
+    CordraClient,
+    CordraError,
+    DigitalObject,
+    ObjectNotFoundError,
+    SearchRequest,
 )
+
 
 def main():
     # Configuration
-    cordra_url = os.getenv('CORDRA_URL', 'https://cordra.kikirpa.be')
-    username = os.getenv('CORDRA_USERNAME')
-    password = os.getenv('CORDRA_PASSWORD')
-    jwt_token = os.getenv('CORDRA_JWT_TOKEN')
-    user_id = os.getenv('CORDRA_USER_ID')
-    private_key_file = os.getenv('CORDRA_PRIVATE_KEY_FILE')
+    cordra_url = os.getenv("CORDRA_URL", "https://cordra.kikirpa.be")
+    username = os.getenv("CORDRA_USERNAME")
+    password = os.getenv("CORDRA_PASSWORD")
+    jwt_token = os.getenv("CORDRA_JWT_TOKEN")
+    user_id = os.getenv("CORDRA_USER_ID")
+    private_key_file = os.getenv("CORDRA_PRIVATE_KEY_FILE")
 
     print(f"Advanced Cordra Client Example")
     print(f"Connecting to: {cordra_url}")
@@ -49,7 +55,7 @@ def main():
 
         elif auth_method == "private_key" and user_id and private_key_file:
             print("\n🔐 Testing private key authentication...")
-            with open(private_key_file, 'r') as f:
+            with open(private_key_file, "r") as f:
                 private_key = json.load(f)
             client.authenticate(user_id=user_id, private_key=private_key)
             print("✓ Private key authentication successful")
@@ -59,7 +65,9 @@ def main():
             print("   Some operations may fail due to permissions")
 
         # Test authentication status
-        print(f"\n🔍 Authentication status: {'✓ Authenticated' if client.is_authenticated() else '❌ Not authenticated'}")
+        print(
+            f"\n🔍 Authentication status: {'✓ Authenticated' if client.is_authenticated() else '❌ Not authenticated'}"
+        )
 
         if client.is_authenticated():
             # Get token information
@@ -78,11 +86,8 @@ def main():
                 "title": "Advanced Example Document",
                 "description": "Created by advanced Python client example",
                 "tags": ["python", "example", "advanced"],
-                "metadata": {
-                    "created_by": "python_client",
-                    "purpose": "demonstration"
-                }
-            }
+                "metadata": {"created_by": "python_client", "purpose": "demonstration"},
+            },
         )
         print(f"✓ Created document: {doc.id}")
 
@@ -91,9 +96,9 @@ def main():
             user = client.create_object(
                 type="User",
                 content={
-                    "username": "test_user_" + str(int(__import__('time').time())),
-                    "password": "test_password_123"
-                }
+                    "username": "test_user_" + str(int(__import__("time").time())),
+                    "password": "test_password_123",
+                },
             )
             print(f"✓ Created user: {user.id}")
         except Exception as e:
@@ -107,12 +112,14 @@ def main():
         print(f"✓ Simple search found {results.size} documents")
 
         # Complex search with JSON query
-        complex_results = client.search(queryJson={
-            "query": "type:Document",
-            "filter": ["title:*example*"],
-            "sort": [{"field": "/title", "order": "desc"}],
-            "facets": [{"field": "/tags", "maxBuckets": 3}]
-        })
+        complex_results = client.search(
+            queryJson={
+                "query": "type:Document",
+                "filter": ["title:*example*"],
+                "sort": [{"field": "/title", "order": "desc"}],
+                "facets": [{"field": "/tags", "maxBuckets": 3}],
+            }
+        )
         print(f"✓ Complex search found {complex_results.size} documents")
 
         # Show facets if available
@@ -120,17 +127,14 @@ def main():
             print("   Facets:")
             for facet in complex_results.facets:
                 print(f"     {facet['field']}:")
-                for bucket in facet['buckets'][:3]:
+                for bucket in facet["buckets"][:3]:
                     print(f"       {bucket['value']}: {bucket['count']}")
 
         # Type method call (if available)
         print("\n⚡ Testing type method call...")
         try:
             # Try to call a method that might exist
-            result = client.call_method(
-                method="getMetadata",
-                object_id=doc.id
-            )
+            result = client.call_method(method="getMetadata", object_id=doc.id)
             print(f"✓ Method call successful: {result}")
         except Exception as e:
             print(f"⚠️  Method call failed (method may not exist): {e}")
@@ -141,18 +145,24 @@ def main():
         try:
             # Get current ACL
             acl = client.get_acl(doc.id)
-            print(f"✓ Current ACL - Readers: {len(acl.readers)}, Writers: {len(acl.writers)}")
+            print(
+                f"✓ Current ACL - Readers: {len(acl.readers)}, Writers: {len(acl.writers)}"
+            )
 
             # Update ACL (add current user if authenticated)
             if client.is_authenticated():
-                current_user = client.auth.token_info.user_id if client.auth.token_info else None
+                current_user = (
+                    client.auth.token_info.user_id if client.auth.token_info else None
+                )
                 if current_user:
                     updated_acl = client.update_acl(
                         object_id=doc.id,
                         readers=[current_user] + acl.readers,
-                        writers=[current_user] + acl.writers
+                        writers=[current_user] + acl.writers,
                     )
-                    print(f"✓ Updated ACL - Readers: {len(updated_acl.readers)}, Writers: {len(updated_acl.writers)}")
+                    print(
+                        f"✓ Updated ACL - Readers: {len(updated_acl.readers)}, Writers: {len(updated_acl.writers)}"
+                    )
         except Exception as e:
             print(f"⚠️  ACL operations failed (permissions issue): {e}")
 
@@ -183,7 +193,7 @@ def main():
         except Exception as e:
             print(f"⚠️  Could not delete document: {e}")
 
-        if 'user' in locals():
+        if "user" in locals():
             try:
                 client.delete_object(user.id)
                 print(f"✓ Deleted user: {user.id}")
@@ -204,8 +214,10 @@ def main():
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 def demonstrate_error_scenarios():
     """Demonstrate different error scenarios and how to handle them."""
@@ -234,6 +246,7 @@ def demonstrate_error_scenarios():
         client.create_object(type="", content={})
     except CordraError as e:
         print(f"✓ ValidationError: {e}")
+
 
 if __name__ == "__main__":
     main()

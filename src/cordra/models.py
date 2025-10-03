@@ -4,9 +4,8 @@ Cordra Python Client - Data Models
 Data classes for Cordra objects, requests, and responses.
 """
 
-from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

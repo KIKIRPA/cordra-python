@@ -5,9 +5,10 @@ Handles authentication token management and various authentication methods.
 """
 
 import time
-from typing import Optional, Dict, Any
-from .models import TokenRequest, TokenResponse
+from typing import Any, Dict, Optional
+
 from .exceptions import AuthenticationError, ConfigurationError
+from .models import TokenRequest, TokenResponse
 
 
 class AuthenticationManager:
@@ -176,7 +177,8 @@ class AuthenticationManager:
         self._token = token_response.access_token
         self._token_info = token_response
 
-        # Tokens are valid for 30 minutes from last use, but we set a conservative expiry
+        # Tokens are valid for 30 minutes from last use, but we set a conservative
+        # expiry
         # The actual expiry is managed by the server and refreshed on each use
         self._token_expires_at = time.time() + (30 * 60)  # 30 minutes
 
@@ -231,7 +233,7 @@ class AuthenticationManager:
         self._token_info = None
         self._token_expires_at = None
 
-        return response.get("active", False) == False
+        return response.get("active", False) is False
 
     def get_token_info(self) -> TokenResponse:
         """

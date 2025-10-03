@@ -11,13 +11,15 @@ This script demonstrates the basic operations with Cordra:
 
 import os
 import sys
+
 from cordra import CordraClient, DigitalObject
+
 
 def main():
     # Get Cordra server URL from environment or use default
-    cordra_url = os.getenv('CORDRA_URL', 'https://cordra.kikirpa.be')
-    username = os.getenv('CORDRA_USERNAME')
-    password = os.getenv('CORDRA_PASSWORD')
+    cordra_url = os.getenv("CORDRA_URL", "https://cordra.kikirpa.be")
+    username = os.getenv("CORDRA_USERNAME")
+    password = os.getenv("CORDRA_PASSWORD")
 
     if not username or not password:
         print("Please set CORDRA_USERNAME and CORDRA_PASSWORD environment variables")
@@ -41,8 +43,8 @@ def main():
             content={
                 "title": "Test Document from Python",
                 "description": "This is a test document created by the Python client",
-                "author": "Python Client Example"
-            }
+                "author": "Python Client Example",
+            },
         )
         print(f"✓ Created object: {obj.id}")
 
@@ -65,7 +67,9 @@ def main():
             # )
             # print(f"✓ Word count: {result}")
 
-            print("  (No type method called - uncomment code above if you have custom methods)")
+            print(
+                "  (No type method called - uncomment code above if you have custom methods)"
+            )
 
         except Exception as e:
             print(f"  (Type method call failed: {e})")
@@ -86,6 +90,7 @@ def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

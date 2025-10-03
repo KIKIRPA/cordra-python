@@ -28,10 +28,10 @@ Example:
     >>> result = client.call_method(object_id=obj["id"], method="myCustomMethod")
 """
 
-from .client import CordraClient, CordraRestClient, CordraDoipClient
 from .auth import AuthenticationManager, TokenResponse
+from .client import CordraClient, CordraDoipClient, CordraRestClient
+from .exceptions import AuthenticationError, CordraError, ObjectNotFoundError
 from .models import DigitalObject, SearchRequest, SearchResponse
-from .exceptions import CordraError, AuthenticationError, ObjectNotFoundError
 
 __version__ = "0.1.0"
 __all__ = [

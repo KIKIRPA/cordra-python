@@ -145,3 +145,6 @@ Thumbs.db
 .env.*.local
 *.log
 *.tmp
+
+# Development documentation (internal use)
+DEVELOPMENT.md

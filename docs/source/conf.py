@@ -4,37 +4,37 @@ import os
 import sys
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.abspath('../../src'))
+sys.path.insert(0, os.path.abspath("../../src"))
 
 # Project information
-project = 'cordra-python'
-copyright = '2025, Royal Institute for Cultural Heritage (KIK-IRPA)'
-author = 'Royal Institute for Cultural Heritage (KIK-IRPA)'
+project = "cordra-python"
+copyright = "2025, Royal Institute for Cultural Heritage (KIK-IRPA)"
+author = "Royal Institute for Cultural Heritage (KIK-IRPA)"
 
 # Version information
-version = '0.1.0'
-release = '0.1.0'
+version = "0.1.0"
+release = "0.1.0"
 
 # General configuration
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.intersphinx',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.intersphinx",
 ]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # HTML output configuration
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
 
 # Autodoc configuration
 autodoc_default_options = {
-    'members': True,
-    'undoc-members': True,
-    'show-inheritance': True,
+    "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
 }
 
 # Napoleon configuration (for Google/NumPy style docstrings)
@@ -53,6 +53,6 @@ napoleon_type_aliases = None
 
 # Intersphinx configuration
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3/', None),
-    'requests': ('https://requests.readthedocs.io/en/latest/', None),
+    "python": ("https://docs.python.org/3/", None),
+    "requests": ("https://requests.readthedocs.io/en/latest/", None),
 }
