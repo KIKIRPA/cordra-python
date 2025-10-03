@@ -1,0 +1,23 @@
+# Development dependencies for cordra-python
+
+# Testing
+pytest>=6.0
+pytest-cov
+
+# Code quality
+black
+flake8
+isort
+mypy
+
+# Development tools
+tox
+pre-commit
+
+# Building and distribution
+build
+twine
+
+# Documentation (optional)
+sphinx
+sphinx-rtd-theme
