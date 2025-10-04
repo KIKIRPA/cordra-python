@@ -148,3 +148,4 @@ Thumbs.db
 
 # Development documentation (internal use)
 DEVELOPMENT.md
+api_tests/

@@ -336,15 +336,31 @@ class CordraClient:
         """
         Upload multiple objects in a batch.
 
+        Supports both REST API and DOIP API batch operations.
+
         Args:
             objects: List of DigitalObject instances to upload
-            **kwargs: Additional parameters (format, failFast, etc.)
+            **kwargs: Additional parameters:
+                - format: "ndjson" for newline-delimited JSON (REST API only)
+                - failFast: Stop on first error (REST API only)
+                - parallel: Process in parallel (REST API only)
 
         Returns:
-            BatchUploadResponse instance
+            BatchUploadResponse instance with operation results
 
-        Example:
+        Note:
+            The server automatically handles create vs update logic for each object.
+
+        Examples:
+            >>> # Basic batch upload
             >>> objects = [DigitalObject(type="Document", content={"title": "Doc 1"})]
+            >>> result = client.batch_upload(objects)
+
+            >>> # REST API with options
+            >>> result = client.batch_upload(objects, failFast=True, parallel=False)
+
+            >>> # DOIP API (default parallel processing)
+            >>> client.api_type = "doip"
             >>> result = client.batch_upload(objects)
         """
         return self._impl.batch_upload(objects, **kwargs)
@@ -638,9 +654,46 @@ class CordraRestClient:
     def batch_upload(
         self, objects: List[DigitalObject], **kwargs
     ) -> BatchUploadResponse:
-        """Batch upload via REST API (not directly supported, use individual
-        creates)."""
-        raise NotImplementedError("Batch upload not available in REST API")
+        """Batch upload via REST API with create/update support.
+
+        Args:
+            objects: List of DigitalObject instances to upload
+            **kwargs: Additional parameters (format, failFast, parallel)
+
+        Returns:
+            BatchUploadResponse instance
+
+        Note:
+            Each object can be created or updated based on ID presence.
+            The server automatically handles create vs update logic.
+        """
+        # Build query parameters
+        params = {}
+
+        # Handle format parameter
+        if "format" in kwargs:
+            params["format"] = kwargs["format"]
+
+        # Handle failFast parameter
+        if "failFast" in kwargs and kwargs["failFast"]:
+            params["failFast"] = "true"
+
+        # Handle parallel parameter
+        if "parallel" in kwargs and not kwargs["parallel"]:
+            params["parallel"] = "false"
+
+        # Convert objects to the appropriate format
+        # Default to Cordra Object JSON Array format (auto-detected by server)
+        objects_data = [obj.to_dict() for obj in objects]
+
+        response = self.client._make_request(
+            method="POST",
+            endpoint="/batchUpload",
+            params=params,
+            json_data=objects_data,
+        )
+
+        return BatchUploadResponse.from_dict(response)
 
     def publish_version(
         self, object_id: str, version_id: str = None, **kwargs

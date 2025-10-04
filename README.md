@@ -323,29 +323,41 @@ result = client.call_method(
 
 ## Batch Operations
 
-### Batch Upload (DOIP API)
+### Batch Upload (REST & DOIP APIs)
+
+Both REST and DOIP APIs support efficient batch upload operations with automatic create/update logic.
+
+#### REST API Batch Upload
 ```python
 from cordra import DigitalObject
 
-# Create multiple objects
+# Create multiple objects (may be mix of new and existing)
 objects = [
-    DigitalObject(type="Document", content={"title": "Document 1"}),
-    DigitalObject(type="Document", content={"title": "Document 2"}),
-    DigitalObject(type="Document", content={"title": "Document 3"})
+    DigitalObject(type="Document", content={"title": "New Document"}),
+    DigitalObject(id="existing/123", type="Document", content={"title": "Updated Document"})
 ]
 
-# Upload in batch
-result = client.batch_upload(
-    objects,
-    failFast=False,  # Continue on errors
-    parallel=True    # Process in parallel
-)
+# Upload in batch - server handles create vs update automatically
+result = client.batch_upload(objects)
+
+# With options
+result = client.batch_upload(objects, failFast=True, parallel=False)
 ```
 
-**Supported Parameters:**
-- `format`: Response format ('ndjson' for newline-delimited JSON)
-- `failFast`: Abort on first error (default: false)
-- `parallel`: Process in parallel (default: true)
+#### DOIP API Batch Upload
+```python
+# Switch to DOIP API for batch operations
+client = CordraClient("https://cordra.example.com", api_type="doip")
+
+# Upload with DOIP-specific options
+result = client.batch_upload(objects, format="ndjson")
+```
+
+**Key Features:**
+- **Automatic Create/Update**: Server handles object existence logic
+- **Multiple Formats**: Supports JSON array, search results, and NDJSON
+- **Flexible Processing**: Configurable parallel processing and error handling
+- **Payload Support**: Handle file uploads with base64 encoding
 
 **Returns:** `BatchUploadResponse` instance with success status and results for each object
 
