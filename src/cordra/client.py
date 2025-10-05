@@ -4,8 +4,9 @@ Cordra Python Client - Main Client Implementation
 Provides CordraClient class that supports both REST and DOIP APIs.
 """
 
+import base64
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, cast
 from urllib.parse import urljoin
 
 import requests
@@ -14,12 +15,12 @@ from .auth import AuthenticationManager
 from .exceptions import CordraError, handle_http_error
 from .models import (
     AclInfo,
+    AuthenticationResponse,
     BatchUploadResponse,
     DigitalObject,
     MethodCallRequest,
     SearchRequest,
     SearchResponse,
-    TokenResponse,
     VersionInfo,
 )
 
@@ -50,7 +51,7 @@ class CordraClient:
         api_type: str = "rest",
         verify_ssl: bool = True,
         timeout: int = 30,
-    ):
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_type = api_type.lower()
         self.verify_ssl = verify_ssl
@@ -58,7 +59,7 @@ class CordraClient:
 
         # Initialize authentication manager
         self.auth = AuthenticationManager(self)
-
+        self._impl: Union[CordraRestClient, CordraDoipClient]
         # Initialize appropriate client implementation
         if self.api_type == "rest":
             self._impl = CordraRestClient(self)
@@ -72,17 +73,28 @@ class CordraClient:
         method: str,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
+        json_data: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
         data: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
+        **kwargs: Any,
+    ) -> Any:
         """Make HTTP request with proper error handling."""
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
 
         # Add authentication headers if available
+        auth_headers = {}
+
+        # Add Bearer token if available
         if self.auth.token:
-            auth_headers = {"Authorization": f"Bearer {self.auth.token}"}
+            auth_headers["Authorization"] = f"Bearer {self.auth.token}"
+        # Add Basic auth if credentials are available and no token
+        elif self.auth.username and self.auth.password:
+            # Create basic auth header
+            credentials = f"{self.auth.username}:{self.auth.password}"
+            encoded = base64.b64encode(credentials.encode()).decode()
+            auth_headers["Authorization"] = f"Basic {encoded}"
+
+        if auth_headers:
             if headers:
                 headers.update(auth_headers)
             else:
@@ -126,18 +138,18 @@ class CordraClient:
             raise CordraError(f"Request failed: {str(e)}")
 
     # Authentication methods
-    def authenticate(self, **kwargs) -> TokenResponse:
+    def authenticate(self, **kwargs: Any) -> AuthenticationResponse:
         """
         Authenticate with the Cordra server.
 
         Args:
             **kwargs: Authentication parameters
-                - username, password: For password authentication
-                - jwt_token: For JWT bearer authentication
-                - user_id, private_key: For private key authentication
+                - username, password: For password authentication (bearer token)
+                - jwt_token: For JWT bearer authentication with an id token
+                  from a OAuth2/OIDC provider
 
         Returns:
-            TokenResponse with authentication information
+            AuthenticationResponse with authentication information
 
         Example:
             >>> client.authenticate(username="user", password="pass")
@@ -145,18 +157,105 @@ class CordraClient:
         """
         return self.auth.authenticate(**kwargs)
 
+    def authenticate_basic(
+        self, username: str, password: str
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using HTTP Basic authentication.
+
+        Args:
+            username: Username for authentication
+            password: Password for authentication
+
+        Returns:
+            AuthenticationResponse with authentication information
+
+        Example:
+            >>> client.authenticate_basic("user", "pass")
+        """
+        return self.auth.authenticate_basic(username, password)
+
+    def check_credentials(self, full: bool = False) -> AuthenticationResponse:
+        """
+        Check authentication credentials and get user information.
+
+        Only available for REST API. This method is useful for keeping sessions
+        alive and getting up-to-date user information.
+
+        Args:
+            full: Include additional user information (types permitted to
+                  create, groups)
+
+        Returns:
+            AuthenticationResponse with user information
+
+        Example:
+            >>> info = client.check_credentials()
+            >>> print(f"Active: {info.active}, Username: {info.username}")
+        """
+        if self.api_type != "rest":
+            raise ValueError("check_credentials is only available for REST API")
+
+        params = {}
+        if full:
+            params["full"] = "true"
+
+        response = self._make_request(
+            method="GET", endpoint="/check-credentials", params=params
+        )
+
+        return AuthenticationResponse.from_dict(response)
+
     def is_authenticated(self) -> bool:
         """Check if client is currently authenticated."""
         return self.auth.is_authenticated
 
-    def logout(self):
-        """Logout and clear authentication."""
+    def logout(self) -> AuthenticationResponse:
+        """
+        Logout and clear authentication.
+
+        For token-based authentication, revokes the token.
+        For basic authentication, just clears the stored credentials.
+
+        Returns:
+            AuthenticationResponse indicating logout status
+
+        Example:
+            >>> result = client.logout()
+            >>> print(f"Logged out: {not result.active}")
+        """
         if self.auth.token:
+            # For token-based authentication, revoke the token
             self.auth.revoke_token()
-        self.auth.clear_authentication()
+        else:
+            # For basic authentication, just clear credentials
+            self.auth.clear_authentication()
+
+        # Return a response indicating logout
+        return AuthenticationResponse(active=False)
+
+    def introspect_token(
+        self, token: Optional[str] = None, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Introspect an authentication token.
+
+        Args:
+            token: Token to introspect (uses current token if not specified)
+            full: Include additional user information (types permitted to
+                  create, groups)
+
+        Returns:
+            AuthenticationResponse with token information
+
+        Example:
+            >>> info = client.introspect_token()
+            >>> print(f"Active: {info.active}, Username: {info.username}")
+        """
+        return self.auth.introspect_token(token, full)
 
     # Object management methods
-    def get_object(self, object_id: str, **kwargs) -> DigitalObject:
+    def get_object(self, object_id: str, **kwargs: Any) -> DigitalObject:
         """
         Retrieve a digital object by ID.
 
@@ -173,7 +272,7 @@ class CordraClient:
         return self._impl.get_object(object_id, **kwargs)
 
     def create_object(
-        self, type: str, content: Dict[str, Any], **kwargs
+        self, type: str, content: Dict[str, Any], **kwargs: Any
     ) -> DigitalObject:
         """
         Create a new digital object.
@@ -192,7 +291,7 @@ class CordraClient:
         return self._impl.create_object(type, content, **kwargs)
 
     def update_object(
-        self, object_id: str, content: Dict[str, Any], **kwargs
+        self, object_id: str, content: Dict[str, Any], **kwargs: Any
     ) -> DigitalObject:
         """
         Update an existing digital object.
@@ -210,7 +309,7 @@ class CordraClient:
         """
         return self._impl.update_object(object_id, content, **kwargs)
 
-    def delete_object(self, object_id: str, **kwargs) -> bool:
+    def delete_object(self, object_id: str, **kwargs: Any) -> bool:
         """
         Delete a digital object.
 
@@ -227,7 +326,7 @@ class CordraClient:
         return self._impl.delete_object(object_id, **kwargs)
 
     # Search methods
-    def search(self, query: str = None, **kwargs) -> SearchResponse:
+    def search(self, query: Optional[str] = None, **kwargs: Any) -> SearchResponse:
         """
         Search for digital objects.
 
@@ -261,7 +360,10 @@ class CordraClient:
         return self._impl.get_acl(object_id)
 
     def update_acl(
-        self, object_id: str, readers: List[str] = None, writers: List[str] = None
+        self,
+        object_id: str,
+        readers: Optional[List[str]] = None,
+        writers: Optional[List[str]] = None,
     ) -> AclInfo:
         """
         Update access control list for an object.
@@ -285,11 +387,11 @@ class CordraClient:
     def call_method(
         self,
         method: str,
-        object_id: str = None,
-        type: str = None,
-        params: Dict[str, Any] = None,
-        attributes: Dict[str, Any] = None,
-        **kwargs,
+        object_id: Optional[str] = None,
+        type: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> Any:
         """
         Call a type method on an object or type.
@@ -331,7 +433,7 @@ class CordraClient:
 
     # Batch operations
     def batch_upload(
-        self, objects: List[DigitalObject], **kwargs
+        self, objects: List[DigitalObject], **kwargs: Any
     ) -> BatchUploadResponse:
         """
         Upload multiple objects in a batch.
@@ -367,7 +469,7 @@ class CordraClient:
 
     # Version management
     def publish_version(
-        self, object_id: str, version_id: str = None, **kwargs
+        self, object_id: str, version_id: Optional[str] = None, **kwargs: Any
     ) -> VersionInfo:
         """
         Publish a new version of an object.
@@ -401,7 +503,7 @@ class CordraClient:
         return self._impl.get_versions(object_id)
 
     # Relationship queries
-    def get_relationships(self, object_id: str, **kwargs) -> Dict[str, Any]:
+    def get_relationships(self, object_id: str, **kwargs: Any) -> Dict[str, Any]:
         """
         Get objects related to the specified object.
 
@@ -449,10 +551,10 @@ class CordraClient:
 class CordraRestClient:
     """REST API implementation for Cordra."""
 
-    def __init__(self, client: CordraClient):
+    def __init__(self, client: "CordraClient") -> None:
         self.client = client
 
-    def get_object(self, object_id: str, **kwargs) -> DigitalObject:
+    def get_object(self, object_id: str, **kwargs: Any) -> DigitalObject:
         """Get object via REST API."""
         params = {}
         if "jsonPointer" in kwargs:
@@ -477,7 +579,7 @@ class CordraRestClient:
         return DigitalObject.from_dict(response)
 
     def create_object(
-        self, type: str, content: Dict[str, Any], **kwargs
+        self, type: str, content: Dict[str, Any], **kwargs: Any
     ) -> DigitalObject:
         """Create object via REST API."""
         params = {"type": type}
@@ -498,7 +600,7 @@ class CordraRestClient:
         return DigitalObject.from_dict(response)
 
     def update_object(
-        self, object_id: str, content: Dict[str, Any], **kwargs
+        self, object_id: str, content: Dict[str, Any], **kwargs: Any
     ) -> DigitalObject:
         """Update object via REST API."""
         params = {}
@@ -525,7 +627,7 @@ class CordraRestClient:
 
         return DigitalObject.from_dict(response)
 
-    def delete_object(self, object_id: str, **kwargs) -> bool:
+    def delete_object(self, object_id: str, **kwargs: Any) -> bool:
         """Delete object via REST API."""
         params = {}
         if "jsonPointer" in kwargs:
@@ -536,7 +638,7 @@ class CordraRestClient:
         )
         return True
 
-    def search(self, query: str = None, **kwargs) -> SearchResponse:
+    def search(self, query: Optional[str] = None, **kwargs: Any) -> SearchResponse:
         """Search via REST API."""
         if query:
             # Use GET method for simple queries
@@ -588,7 +690,10 @@ class CordraRestClient:
         return AclInfo.from_dict(response)
 
     def update_acl(
-        self, object_id: str, readers: List[str] = None, writers: List[str] = None
+        self,
+        object_id: str,
+        readers: Optional[List[str]] = None,
+        writers: Optional[List[str]] = None,
     ) -> AclInfo:
         """Update ACL via REST API."""
         acl_data = {}
@@ -605,11 +710,11 @@ class CordraRestClient:
     def call_method(
         self,
         method: str,
-        object_id: str = None,
-        type: str = None,
-        params: Dict[str, Any] = None,
-        attributes: Dict[str, Any] = None,
-        **kwargs,
+        object_id: Optional[str] = None,
+        type: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> Any:
         """Call method via REST API."""
         request_params = {"method": method}
@@ -652,7 +757,7 @@ class CordraRestClient:
         return True
 
     def batch_upload(
-        self, objects: List[DigitalObject], **kwargs
+        self, objects: List[DigitalObject], **kwargs: Any
     ) -> BatchUploadResponse:
         """Batch upload via REST API with create/update support.
 
@@ -696,7 +801,7 @@ class CordraRestClient:
         return BatchUploadResponse.from_dict(response)
 
     def publish_version(
-        self, object_id: str, version_id: str = None, **kwargs
+        self, object_id: str, version_id: Optional[str] = None, **kwargs: Any
     ) -> VersionInfo:
         """Publish version via REST API (not directly supported)."""
         raise NotImplementedError("Version publishing not available in REST API")
@@ -705,7 +810,7 @@ class CordraRestClient:
         """Get versions via REST API (not directly supported)."""
         raise NotImplementedError("Version management not available in REST API")
 
-    def get_relationships(self, object_id: str, **kwargs) -> Dict[str, Any]:
+    def get_relationships(self, object_id: str, **kwargs: Any) -> Dict[str, Any]:
         """Get relationships via REST API (not directly supported)."""
         raise NotImplementedError("Relationships not available in REST API")
 
@@ -721,10 +826,10 @@ class CordraRestClient:
 class CordraDoipClient:
     """DOIP API implementation for Cordra."""
 
-    def __init__(self, client: CordraClient):
+    def __init__(self, client: "CordraClient") -> None:
         self.client = client
 
-    def get_object(self, object_id: str, **kwargs) -> DigitalObject:
+    def get_object(self, object_id: str, **kwargs: Any) -> DigitalObject:
         """Get object via DOIP API."""
         params = {"targetId": object_id}
         if "element" in kwargs:
@@ -737,7 +842,7 @@ class CordraDoipClient:
         return DigitalObject.from_dict(response)
 
     def create_object(
-        self, type: str, content: Dict[str, Any], **kwargs
+        self, type: str, content: Dict[str, Any], **kwargs: Any
     ) -> DigitalObject:
         """Create object via DOIP API."""
         obj = DigitalObject(type=type, content=content)
@@ -753,7 +858,7 @@ class CordraDoipClient:
         return DigitalObject.from_dict(response)
 
     def update_object(
-        self, object_id: str, content: Dict[str, Any], **kwargs
+        self, object_id: str, content: Dict[str, Any], **kwargs: Any
     ) -> DigitalObject:
         """Update object via DOIP API."""
         obj = DigitalObject(id=object_id, type="", content=content)
@@ -768,7 +873,7 @@ class CordraDoipClient:
 
         return DigitalObject.from_dict(response)
 
-    def delete_object(self, object_id: str, **kwargs) -> bool:
+    def delete_object(self, object_id: str, **kwargs: Any) -> bool:
         """Delete object via DOIP API."""
         params = {"targetId": object_id}
 
@@ -777,9 +882,12 @@ class CordraDoipClient:
         )
         return True
 
-    def search(self, query: str = None, **kwargs) -> SearchResponse:
+    def search(self, query: Optional[str] = None, **kwargs: Any) -> SearchResponse:
         """Search via DOIP API."""
-        params = {"targetId": "service", "query": query or kwargs.get("query", "")}
+        params: Dict[str, Any] = {
+            "targetId": "service",
+            "query": query or kwargs.get("query", ""),
+        }
 
         if "pageNum" in kwargs:
             params["pageNum"] = kwargs["pageNum"]
@@ -817,7 +925,10 @@ class CordraDoipClient:
         raise NotImplementedError("ACL operations not available in DOIP API")
 
     def update_acl(
-        self, object_id: str, readers: List[str] = None, writers: List[str] = None
+        self,
+        object_id: str,
+        readers: Optional[List[str]] = None,
+        writers: Optional[List[str]] = None,
     ) -> AclInfo:
         """Update ACL via DOIP API (not directly supported)."""
         raise NotImplementedError("ACL operations not available in DOIP API")
@@ -825,11 +936,11 @@ class CordraDoipClient:
     def call_method(
         self,
         method: str,
-        object_id: str = None,
-        type: str = None,
-        params: Dict[str, Any] = None,
-        attributes: Dict[str, Any] = None,
-        **kwargs,
+        object_id: Optional[str] = None,
+        type: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> Any:
         """Call method via DOIP API (not directly supported)."""
         raise NotImplementedError("Type method calls not available in DOIP API")
@@ -847,7 +958,7 @@ class CordraDoipClient:
         return True
 
     def batch_upload(
-        self, objects: List[DigitalObject], **kwargs
+        self, objects: List[DigitalObject], **kwargs: Any
     ) -> BatchUploadResponse:
         """Batch upload via DOIP API."""
         params = {"targetId": "service"}
@@ -872,10 +983,10 @@ class CordraDoipClient:
         return BatchUploadResponse.from_dict(response)
 
     def publish_version(
-        self, object_id: str, version_id: str = None, **kwargs
+        self, object_id: str, version_id: Optional[str] = None, **kwargs: Any
     ) -> VersionInfo:
         """Publish version via DOIP API."""
-        params = {"targetId": object_id}
+        params: Dict[str, Any] = {"targetId": object_id}
 
         if version_id:
             params["versionId"] = version_id
@@ -897,12 +1008,13 @@ class CordraDoipClient:
         )
 
         versions = []
-        for item in response:
+        response_list = cast(List[Dict[str, Any]], response)
+        for item in response_list:
             versions.append(VersionInfo.from_dict(item))
 
         return versions
 
-    def get_relationships(self, object_id: str, **kwargs) -> Dict[str, Any]:
+    def get_relationships(self, object_id: str, **kwargs: Any) -> Dict[str, Any]:
         """Get relationships via DOIP API."""
         params = {"targetId": object_id}
 
@@ -913,7 +1025,7 @@ class CordraDoipClient:
             method="POST", endpoint="/20.DOIP/Op.Relationships.Get", params=params
         )
 
-        return response
+        return cast(Dict[str, Any], response)
 
     def hello(self) -> Dict[str, Any]:
         """Hello via DOIP API."""
@@ -923,7 +1035,7 @@ class CordraDoipClient:
             method="POST", endpoint="/0.DOIP/Op.Hello", params=params
         )
 
-        return response
+        return cast(Dict[str, Any], response)
 
     def list_operations(self, target_id: str = "service") -> List[str]:
         """List operations via DOIP API."""
@@ -933,4 +1045,4 @@ class CordraDoipClient:
             method="POST", endpoint="/0.DOIP/Op.ListOperations", params=params
         )
 
-        return response
+        return cast(List[str], response)

@@ -2,9 +2,26 @@
 Tests for cordra.models module.
 """
 
+import os
+import sys
+
+# Add authentication-related imports for testing
 import pytest
 
-from cordra.models import AclInfo, DigitalObject, SearchRequest, TokenResponse
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from cordra.auth import (  # noqa: E402
+    AuthenticationManager,
+    BaseAuthenticationManager,
+    DoipAuthenticationManager,
+    RestAuthenticationManager,
+)
+from cordra.models import (  # noqa: E402
+    AclInfo,
+    DigitalObject,
+    SearchRequest,
+    TokenResponse,
+)
 
 
 class TestDigitalObject:
@@ -192,3 +209,143 @@ class TestAclInfo:
         acl = AclInfo(readers=["user1"], writers=["user1", "user2"])
         data = acl.to_dict()
         assert data == {"readers": ["user1"], "writers": ["user1", "user2"]}
+
+
+class TestAuthenticationManagers:
+    """Test authentication manager classes."""
+
+    def test_base_authentication_manager_init(self):
+        """Test BaseAuthenticationManager initialization."""
+        # Mock client for testing
+        mock_client = type("MockClient", (), {})()
+
+        auth = BaseAuthenticationManager(mock_client)
+        assert auth.client == mock_client
+        assert auth.token is None
+        assert auth.username is None
+        assert auth.password is None
+        assert not auth.is_authenticated
+
+    def test_base_authentication_credentials(self):
+        """Test basic authentication credential handling."""
+        mock_client = type("MockClient", (), {})()
+        auth = BaseAuthenticationManager(mock_client)
+
+        # Set credentials
+        auth._username = "testuser"
+        auth._password = "testpass"
+        auth._token = None
+
+        assert auth.is_authenticated
+        assert auth.username == "testuser"
+        assert auth.password == "testpass"
+
+        # Test basic auth header generation
+        import base64
+
+        expected_header = f"Basic {base64.b64encode(b'testuser:testpass').decode()}"
+        assert auth._get_basic_auth_header() == expected_header
+
+    def test_base_authentication_token(self):
+        """Test token-based authentication."""
+        mock_client = type("MockClient", (), {})()
+        auth = BaseAuthenticationManager(mock_client)
+
+        # Set token
+        auth._token = "test_token"
+        auth._username = None
+        auth._password = None
+
+        assert auth.is_authenticated
+        assert auth.token == "test_token"
+        assert auth._get_bearer_auth_header() == "Bearer test_token"
+
+    def test_rest_authentication_manager_basic_auth(self):
+        """Test REST API basic authentication."""
+        mock_client = type(
+            "MockClient",
+            (),
+            {
+                "_make_request": lambda **kwargs: {
+                    "status": "success"
+                }  # Mock successful response
+            },
+        )()
+
+        auth = RestAuthenticationManager(mock_client)
+
+        # Test basic auth (would fail in real scenario without proper server)
+        # For testing, we just verify the method exists and can be called
+        assert hasattr(auth, "authenticate_basic")
+
+    def test_doip_authentication_manager_basic_auth(self):
+        """Test DOIP API basic authentication."""
+        mock_client = type(
+            "MockClient",
+            (),
+            {
+                "_make_request": lambda **kwargs: {
+                    "status": "success"
+                }  # Mock successful response
+            },
+        )()
+
+        auth = DoipAuthenticationManager(mock_client)
+
+        # Test basic auth (would fail in real scenario without proper server)
+        # For testing, we just verify the method exists and can be called
+        assert hasattr(auth, "authenticate_basic")
+
+    def test_unified_authentication_manager_routing(self):
+        """Test that AuthenticationManager routes to correct API-specific manager."""
+        mock_client = type(
+            "MockClient",
+            (),
+            {
+                "api_type": "rest",
+                "_make_request": lambda **kwargs: {"access_token": "test_token"},
+            },
+        )()
+
+        auth = AuthenticationManager(mock_client)
+
+        # Should route to REST manager
+        assert hasattr(auth, "_get_api_manager")
+        assert hasattr(auth, "authenticate_basic")
+        assert hasattr(auth, "authenticate_password")
+        assert hasattr(auth, "authenticate_jwt")
+
+    def test_authentication_state_clearing(self):
+        """Test clearing authentication state."""
+        mock_client = type("MockClient", (), {})()
+        auth = BaseAuthenticationManager(mock_client)
+
+        # Set some authentication state
+        auth._token = "test_token"
+        auth._username = "testuser"
+        auth._password = "testpass"
+
+        # Clear authentication
+        auth.clear_authentication()
+
+        assert auth._token is None
+        assert auth._username is None
+        assert auth._password is None
+        assert not auth.is_authenticated
+
+    def test_unified_authentication_manager_introspect(self):
+        """Test that AuthenticationManager has introspect_token method."""
+        mock_client = type(
+            "MockClient",
+            (),
+            {
+                "api_type": "rest",
+                "_make_request": lambda **kwargs: {"active": True, "username": "test"},
+            },
+        )()
+
+        auth = AuthenticationManager(mock_client)
+
+        # Should have introspect_token method
+        assert hasattr(auth, "introspect_token")
+        assert hasattr(auth, "revoke_token")

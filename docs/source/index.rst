@@ -75,33 +75,24 @@ Basic Usage
        object_id=obj.id
    )
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   authentication
+   api_reference
+   error_handling
+
 API Reference
 =============
 
-.. automodule:: cordra
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. toctree::
+   :maxdepth: 1
 
-.. automodule:: cordra.client
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: cordra.models
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: cordra.auth
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: cordra.exceptions
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   api_client
+   api_models
+   api_authentication
+   api_exceptions
 
 Error Handling
 ==============

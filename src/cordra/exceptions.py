@@ -4,13 +4,18 @@ Cordra Python Client - Exception Classes
 Custom exceptions for handling Cordra API errors and edge cases.
 """
 
+from typing import Any, Optional
+
 
 class CordraError(Exception):
     """Base exception for all Cordra-related errors."""
 
     def __init__(
-        self, message: str, status_code: int = None, response_data: dict = None
-    ):
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        response_data: Optional[dict[Any, Any]] = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.response_data = response_data or {}
@@ -58,7 +63,9 @@ class ConfigurationError(CordraError):
     pass
 
 
-def handle_http_error(response, response_data: dict = None):
+def handle_http_error(
+    response: Any, response_data: Optional[dict[Any, Any]] = None
+) -> None:
     """
     Convert HTTP error responses to appropriate Cordra exceptions.
 

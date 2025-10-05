@@ -18,7 +18,7 @@ class DigitalObject:
     acl: Optional[Dict[str, List[str]]] = None
     metadata: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.type:
             raise ValueError("Object type is required")
 
@@ -60,7 +60,7 @@ class SearchRequest:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API requests."""
-        result = {}
+        result: Dict[str, Any] = {}
         if self.query:
             result["query"] = self.query
         if self.query_json:
@@ -118,7 +118,7 @@ class TokenRequest:
     user_id: Optional[str] = None  # For private key auth
     private_key: Optional[Dict[str, Any]] = None  # RSA JWK
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.grant_type == "password" and not (self.username and self.password):
             raise ValueError("Username and password required for password grant")
         elif (
@@ -129,7 +129,7 @@ class TokenRequest:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API requests."""
-        result = {"grant_type": self.grant_type}
+        result: Dict[str, Any] = {"grant_type": self.grant_type}
         if self.username:
             result["username"] = self.username
         if self.password:
@@ -253,3 +253,43 @@ class VersionInfo:
             published_on=data.get("publishedOn", 0),
             is_tip=data.get("isTip", False),
         )
+
+
+@dataclass
+class AuthenticationResponse:
+    """Standardized response for all authentication-related operations."""
+
+    active: bool = False
+    username: Optional[str] = None
+    user_id: Optional[str] = None
+    types_permitted_to_create: List[str] = field(default_factory=list)
+    group_ids: List[str] = field(default_factory=list)
+    access_token: Optional[str] = None
+    token_type: str = "Bearer"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AuthenticationResponse":
+        """Create AuthenticationResponse from API response."""
+        return cls(
+            active=data.get("active", False),
+            username=data.get("username"),
+            user_id=data.get("userId"),
+            types_permitted_to_create=data.get("typesPermittedToCreate", []),
+            group_ids=data.get("groupIds", []),
+            access_token=data.get("access_token"),
+            token_type=data.get("token_type", "Bearer"),
+        )
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for API requests."""
+        result = {
+            "active": self.active,
+            "username": self.username,
+            "userId": self.user_id,
+            "typesPermittedToCreate": self.types_permitted_to_create,
+            "groupIds": self.group_ids,
+        }
+        if self.access_token:
+            result["access_token"] = self.access_token
+            result["token_type"] = self.token_type
+        return result

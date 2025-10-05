@@ -21,3 +21,4 @@ twine
 # Documentation (optional)
 sphinx
 sphinx-rtd-theme
+types-requests

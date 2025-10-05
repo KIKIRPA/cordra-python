@@ -44,12 +44,17 @@ def main():
 
     try:
         if auth_method == "password" and username and password:
-            print("\n🔐 Testing password authentication...")
+            print("\n🔐 Testing OAuth-style password authentication (bearer token)...")
             client.authenticate(username=username, password=password)
-            print("✓ Password authentication successful")
+            print("✓ OAuth password authentication successful")
+
+        elif auth_method == "basic" and username and password:
+            print("\n🔐 Testing HTTP Basic authentication...")
+            success = client.authenticate_basic(username=username, password=password)
+            print(f"✓ Basic authentication successful: {success}")
 
         elif auth_method == "jwt" and jwt_token:
-            print("\n🔐 Testing JWT authentication...")
+            print("\n🔐 Testing JWT bearer token authentication...")
             client.authenticate(jwt_token=jwt_token)
             print("✓ JWT authentication successful")
 
@@ -63,6 +68,11 @@ def main():
         else:
             print(f"\n⚠️  Using anonymous access (no authentication provided)")
             print("   Some operations may fail due to permissions")
+            print("   Available authentication methods:")
+            print("   - password: OAuth-style username/password (bearer token)")
+            print("   - basic: HTTP Basic authentication")
+            print("   - jwt: JWT bearer token")
+            print("   - private_key: RSA private key authentication")
 
         # Test authentication status
         print(
@@ -70,11 +80,9 @@ def main():
         )
 
         if client.is_authenticated():
-            # Get token information
-            token_info = client.auth.get_token_info()
-            print(f"   Username: {token_info.username}")
-            print(f"   User ID: {token_info.user_id}")
-            print(f"   Types can create: {len(token_info.types_permitted_to_create)}")
+            # Get token information (note: Cordra tokens don't have embedded info)
+            print("   ✓ Authenticated with bearer token")
+            print(f"   Token available: {len(client.auth.token) > 0}")
 
         # Create test objects
         print("\n📝 Creating test objects...")
@@ -151,18 +159,10 @@ def main():
 
             # Update ACL (add current user if authenticated)
             if client.is_authenticated():
-                current_user = (
-                    client.auth.token_info.user_id if client.auth.token_info else None
-                )
-                if current_user:
-                    updated_acl = client.update_acl(
-                        object_id=doc.id,
-                        readers=[current_user] + acl.readers,
-                        writers=[current_user] + acl.writers,
-                    )
-                    print(
-                        f"✓ Updated ACL - Readers: {len(updated_acl.readers)}, Writers: {len(updated_acl.writers)}"
-                    )
+                # Note: Cordra tokens don't contain user ID information
+                # In a real implementation, you would need to track the user separately
+                print("   ✓ Skipping ACL update (token-based auth doesn't expose user ID)")
+                print(f"   Current ACL - Readers: {len(acl.readers)}, Writers: {len(acl.writers)}")
         except Exception as e:
             print(f"⚠️  ACL operations failed (permissions issue): {e}")
 

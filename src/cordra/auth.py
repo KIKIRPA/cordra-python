@@ -1,27 +1,26 @@
 """
 Cordra Python Client - Authentication Management
 
-Handles authentication token management and various authentication methods.
+Handles authentication for both REST and DOIP APIs with various authentication methods.
 """
 
-import time
-from typing import Any, Dict, Optional
+import base64
+import json
+from typing import Any, Optional, Union
 
 from .exceptions import AuthenticationError, ConfigurationError
-from .models import TokenRequest, TokenResponse
+from .models import AuthenticationResponse, TokenRequest
 
 
-class AuthenticationManager:
+class BaseAuthenticationManager:
     """
-    Manages authentication tokens and handles different authentication methods.
+    Base class for authentication managers.
 
-    Supports:
-    - Password authentication
-    - JWT bearer tokens
-    - Private key authentication (RSA JWK format)
+    Handles common authentication state and provides interface for API-specific
+    implementations.
     """
 
-    def __init__(self, client):
+    def __init__(self, client: Any) -> None:
         """
         Initialize authentication manager.
 
@@ -30,8 +29,8 @@ class AuthenticationManager:
         """
         self.client = client
         self._token: Optional[str] = None
-        self._token_expires_at: Optional[float] = None
-        self._token_info: Optional[TokenResponse] = None
+        self._username: Optional[str] = None
+        self._password: Optional[str] = None
 
     @property
     def token(self) -> Optional[str]:
@@ -39,31 +38,103 @@ class AuthenticationManager:
         return self._token
 
     @property
-    def token_info(self) -> Optional[TokenResponse]:
-        """Current token information."""
-        return self._token_info
+    def username(self) -> Optional[str]:
+        """Current username for basic authentication."""
+        return self._username
+
+    @property
+    def password(self) -> Optional[str]:
+        """Current password for basic authentication."""
+        return self._password
 
     @property
     def is_authenticated(self) -> bool:
         """Check if currently authenticated."""
-        return self._token is not None and not self._is_token_expired()
+        return self._token is not None or (
+            self._username is not None and self._password is not None
+        )
 
-    def _is_token_expired(self) -> bool:
-        """Check if the current token is expired."""
-        if not self._token_expires_at:
-            return False
-        return time.time() >= self._token_expires_at
+    def _get_basic_auth_header(self) -> str:
+        """Get basic authentication header."""
+        if not self._username or not self._password:
+            raise AuthenticationError("Basic authentication credentials not set")
+        credentials = f"{self._username}:{self._password}"
+        encoded = base64.b64encode(credentials.encode()).decode()
+        return f"Basic {encoded}"
 
-    def authenticate_with_password(self, username: str, password: str) -> TokenResponse:
+    def _get_bearer_auth_header(self) -> str:
+        """Get bearer token authentication header."""
+        if not self._token:
+            raise AuthenticationError("No access token available")
+        return f"Bearer {self._token}"
+
+    def clear_authentication(self) -> None:
+        """Clear all authentication information."""
+        self._token = None
+        self._username = None
+        self._password = None
+
+
+class RestAuthenticationManager(BaseAuthenticationManager):
+    """
+    Authentication manager for REST API.
+
+    Supports:
+    - HTTP Basic authentication
+    - OAuth-style password authentication (bearer tokens)
+    - JWT bearer token authentication
+    - Private key authentication (creates JWT from private key)
+    """
+
+    def authenticate_basic(
+        self, username: str, password: str
+    ) -> AuthenticationResponse:
         """
-        Authenticate using username and password.
+        Authenticate using HTTP Basic authentication.
 
         Args:
             username: Username for authentication
             password: Password for authentication
 
         Returns:
-            TokenResponse with token information
+            AuthenticationResponse with authentication information
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        # For REST API, basic auth is validated on each request
+        # We store credentials and let the server validate them
+        self._username = username
+        self._password = password
+        self._token = None  # Clear any existing token
+
+        # Test the credentials and get user information
+        try:
+            response = self.client._make_request(
+                method="GET", endpoint="/check-credentials"
+            )
+            auth_response = AuthenticationResponse.from_dict(response)
+            auth_response.active = True  # If we got here, authentication was successful
+            return auth_response
+        except Exception:
+            # Clear credentials if authentication failed
+            self._username = None
+            self._password = None
+            raise AuthenticationError("Basic authentication failed")
+
+    def authenticate_password(
+        self, username: str, password: str, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using username and password to get bearer token.
+
+        Args:
+            username: Username for authentication
+            password: Password for authentication
+            full: Include additional user information
+
+        Returns:
+            AuthenticationResponse with authentication information
 
         Raises:
             AuthenticationError: If authentication fails
@@ -72,24 +143,38 @@ class AuthenticationManager:
             grant_type="password", username=username, password=password
         )
 
+        params = {}
+        if full:
+            params["full"] = "true"
+
         response = self.client._make_request(
-            method="POST", endpoint="/auth/token", json_data=token_request.to_dict()
+            method="POST",
+            endpoint="/auth/token",
+            params=params,
+            json_data=token_request.to_dict(),
         )
 
-        token_response = TokenResponse.from_dict(response)
-        self._set_token(token_response)
+        auth_response = AuthenticationResponse.from_dict(response)
 
-        return token_response
+        # Store token and clear basic auth credentials
+        self._token = auth_response.access_token
+        self._username = None
+        self._password = None
 
-    def authenticate_with_jwt(self, jwt_token: str) -> TokenResponse:
+        return auth_response
+
+    def authenticate_jwt(
+        self, jwt_token: str, full: bool = False
+    ) -> AuthenticationResponse:
         """
         Authenticate using JWT bearer token.
 
         Args:
             jwt_token: JWT token string
+            full: Include additional user information
 
         Returns:
-            TokenResponse with token information
+            AuthenticationResponse with authentication information
 
         Raises:
             AuthenticationError: If authentication fails
@@ -99,115 +184,438 @@ class AuthenticationManager:
             assertion=jwt_token,
         )
 
+        params = {}
+        if full:
+            params["full"] = "true"
+
         response = self.client._make_request(
-            method="POST", endpoint="/auth/token", json_data=token_request.to_dict()
+            method="POST",
+            endpoint="/auth/token",
+            params=params,
+            json_data=token_request.to_dict(),
         )
 
-        token_response = TokenResponse.from_dict(response)
-        self._set_token(token_response)
+        auth_response = AuthenticationResponse.from_dict(response)
 
-        return token_response
+        # Store token and clear basic auth credentials
+        self._token = auth_response.access_token
+        self._username = None
+        self._password = None
 
-    def authenticate_with_private_key(
-        self, user_id: str, private_key: Dict[str, Any]
-    ) -> TokenResponse:
+        return auth_response
+
+    def introspect_token(
+        self, token: str, full: bool = False
+    ) -> AuthenticationResponse:
         """
-        Authenticate using RSA private key.
+        Introspect a token using REST API.
 
         Args:
-            user_id: User identifier
-            private_key: RSA private key in JWK format
+            token: Token to introspect
+            full: Include additional user information
 
         Returns:
-            TokenResponse with token information
+            AuthenticationResponse with token information
+
+        Raises:
+            AuthenticationError: If introspection fails
+        """
+        params = {}
+        if full:
+            params["full"] = "true"
+
+        response = self.client._make_request(
+            method="POST",
+            endpoint="/auth/introspect",
+            params=params,
+            json_data={"token": token},
+        )
+
+        return AuthenticationResponse.from_dict(response)
+
+    def revoke_token(self, token: str) -> AuthenticationResponse:
+        """
+        Revoke a token using REST API.
+
+        Args:
+            token: Token to revoke
+
+        Returns:
+            AuthenticationResponse indicating revocation status
+
+        Raises:
+            AuthenticationError: If revocation fails
+        """
+        response = self.client._make_request(
+            method="POST", endpoint="/auth/revoke", json_data={"token": token}
+        )
+
+        # Return a standardized response indicating revocation
+        return AuthenticationResponse(active=response.get("active", False) is False)
+
+
+class DoipAuthenticationManager(BaseAuthenticationManager):
+    """
+    Authentication manager for DOIP API.
+
+    Supports:
+    - HTTP Basic authentication (using DOIP Hello operation)
+    - OAuth-style password authentication (bearer tokens)
+    - JWT bearer token authentication
+    - Private key authentication (creates JWT from private key)
+    """
+
+    def authenticate_basic(
+        self, username: str, password: str
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using HTTP Basic authentication via DOIP.
+
+        For DOIP API, basic authentication is handled via HTTP Authorization header
+        and validated on authenticated requests.
+
+        Args:
+            username: Username for authentication
+            password: Password for authentication
+
+        Returns:
+            AuthenticationResponse with authentication information
 
         Raises:
             AuthenticationError: If authentication fails
         """
-        token_request = TokenRequest(
-            grant_type="password",  # Private key auth uses password grant type
-            user_id=user_id,
-            private_key=private_key,
-        )
+        # For DOIP API, basic auth is handled via HTTP Authorization header
+        # Set credentials - they'll be used for all subsequent requests
+        self._username = username
+        self._password = password
+        self._token = None  # Clear any existing token
+
+        # Test the credentials by making an authenticated request
+        # The _make_request method will automatically add the Authorization header
+        try:
+            # Try to get service information - this should work if auth is valid
+            params = {"operationId": "0.DOIP/Op.Hello", "targetId": "service"}
+
+            _ = self.client._make_request(
+                method="POST", endpoint="/doip", params=params
+            )
+            # If we get here without authentication error, basic auth is working
+            auth_response = AuthenticationResponse(active=True, username=username)
+            return auth_response
+        except AuthenticationError:
+            # Clear credentials if authentication failed
+            self._username = None
+            self._password = None
+            raise
+        except Exception:
+            # Clear credentials if authentication failed
+            self._username = None
+            self._password = None
+            raise
+
+    def authenticate_password(
+        self, username: str, password: str, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using username and password to get bearer token for DOIP.
+
+        Args:
+            username: Username for authentication
+            password: Password for authentication
+            full: Include additional user information
+
+        Returns:
+            AuthenticationResponse with authentication information
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        # DOIP uses /doip endpoint with operationId parameter
+        params = {"operationId": "20.DOIP/Op.Auth.Token", "targetId": "service"}
+
+        # Add attributes for full information if requested
+        if full:
+            params["attributes"] = json.dumps({"full": True})
+
+        token_request = {
+            "grant_type": "password",
+            "username": username,
+            "password": password,
+        }
 
         response = self.client._make_request(
-            method="POST", endpoint="/auth/token", json_data=token_request.to_dict()
+            method="POST", endpoint="/doip", params=params, json_data=token_request
         )
 
-        token_response = TokenResponse.from_dict(response)
-        self._set_token(token_response)
+        auth_response = AuthenticationResponse.from_dict(response)
 
-        return token_response
+        # Store token and clear basic auth credentials
+        self._token = auth_response.access_token
+        self._username = None
+        self._password = None
 
-    def authenticate(self, **kwargs) -> TokenResponse:
+        return auth_response
+
+    def authenticate_jwt(
+        self, jwt_token: str, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using JWT bearer token for DOIP.
+
+        Args:
+            jwt_token: JWT token string
+            full: Include additional user information
+
+        Returns:
+            AuthenticationResponse with authentication information
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        # DOIP uses /doip endpoint with operationId parameter
+        params = {"operationId": "20.DOIP/Op.Auth.Token", "targetId": "service"}
+
+        # Add attributes for full information if requested
+        if full:
+            params["attributes"] = json.dumps({"full": True})
+
+        token_request = {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": jwt_token,
+        }
+
+        response = self.client._make_request(
+            method="POST", endpoint="/doip", params=params, json_data=token_request
+        )
+
+        auth_response = AuthenticationResponse.from_dict(response)
+
+        # Store token and clear basic auth credentials
+        self._token = auth_response.access_token
+        self._username = None
+        self._password = None
+
+        return auth_response
+
+    def introspect_token(
+        self, token: str, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Introspect a token using DOIP API.
+
+        Args:
+            token: Token to introspect
+            full: Include additional user information
+
+        Returns:
+            AuthenticationResponse with token information
+
+        Raises:
+            AuthenticationError: If introspection fails
+        """
+        # DOIP API uses /doip endpoint with query parameters
+        params = {"operationId": "20.DOIP/Op.Auth.Introspect", "targetId": "service"}
+
+        # Add attributes for full information if requested
+        if full:
+            params["attributes"] = json.dumps({"full": True})
+
+        response = self.client._make_request(
+            method="POST", endpoint="/doip", params=params, json_data={"token": token}
+        )
+        return AuthenticationResponse.from_dict(response)
+
+    def revoke_token(self, token: str) -> AuthenticationResponse:
+        """
+        Revoke a token using DOIP API.
+
+        Args:
+            token: Token to revoke
+
+        Returns:
+            AuthenticationResponse indicating revocation status
+
+        Raises:
+            AuthenticationError: If revocation fails
+        """
+        # DOIP API uses /doip endpoint with query parameters
+        params = {"operationId": "20.DOIP/Op.Auth.Revoke", "targetId": "service"}
+
+        response = self.client._make_request(
+            method="POST", endpoint="/doip", params=params, json_data={"token": token}
+        )
+
+        # Return a standardized response indicating revocation
+        return AuthenticationResponse(active=response.get("active", False) is False)
+
+
+class AuthenticationManager:
+    """
+    Unified authentication manager that routes to API-specific implementations.
+
+    This class provides backward compatibility while delegating to the appropriate
+    API-specific authentication manager based on the client's api_type.
+    """
+
+    def __init__(self, client: Any) -> None:
+        """
+        Initialize authentication manager.
+
+        Args:
+            client: Cordra client instance for making API calls
+        """
+        self.client = client
+        self._rest_auth = RestAuthenticationManager(client)
+        self._doip_auth = DoipAuthenticationManager(client)
+
+    def _get_api_manager(
+        self,
+    ) -> Union[RestAuthenticationManager, DoipAuthenticationManager]:
+        """Get the appropriate authentication manager based on client's api_type."""
+        if self.client.api_type == "rest":
+            return self._rest_auth
+        elif self.client.api_type == "doip":
+            return self._doip_auth
+        else:
+            raise ConfigurationError(f"Invalid api_type: {self.client.api_type}")
+
+    @property
+    def token(self) -> Optional[str]:
+        """Current access token."""
+        return self._get_api_manager().token
+
+    @property
+    def username(self) -> Optional[str]:
+        """Current username for basic authentication."""
+        return self._get_api_manager().username
+
+    @property
+    def password(self) -> Optional[str]:
+        """Current password for basic authentication."""
+        return self._get_api_manager().password
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Check if currently authenticated."""
+        return self._get_api_manager().is_authenticated
+
+    def authenticate_basic(
+        self, username: str, password: str
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using HTTP Basic authentication.
+
+        Args:
+            username: Username for authentication
+            password: Password for authentication
+
+        Returns:
+            AuthenticationResponse with authentication information
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        return self._get_api_manager().authenticate_basic(username, password)
+
+    def authenticate_password(
+        self, username: str, password: str, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using username and password to get bearer token.
+
+        Args:
+            username: Username for authentication
+            password: Password for authentication
+            full: Include additional user information
+
+        Returns:
+            AuthenticationResponse with authentication information
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        return self._get_api_manager().authenticate_password(username, password, full)
+
+    def authenticate_jwt(
+        self, jwt_token: str, full: bool = False
+    ) -> AuthenticationResponse:
+        """
+        Authenticate using JWT bearer token.
+
+        Args:
+            jwt_token: JWT token string
+            full: Include additional user information
+
+        Returns:
+            AuthenticationResponse with authentication information
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        return self._get_api_manager().authenticate_jwt(jwt_token, full)
+
+    def authenticate(self, **kwargs: Any) -> AuthenticationResponse:
         """
         Authenticate using various methods based on provided parameters.
 
+        This method routes to the appropriate API-specific authentication method
+        based on the client's api_type.
+
         Args:
             **kwargs: Authentication parameters
-                - username, password: For password authentication
+                - username, password: For password authentication (bearer token)
                 - jwt_token: For JWT bearer authentication
-                - user_id, private_key: For private key authentication
+                - full: Include additional user information (optional, default: False)
 
         Returns:
-            TokenResponse with token information
+            AuthenticationResponse with authentication information
 
         Raises:
             AuthenticationError: If authentication fails
             ConfigurationError: If invalid parameters provided
         """
+        api_manager = self._get_api_manager()
+        full = kwargs.pop("full", False)
+
         if "username" in kwargs and "password" in kwargs:
-            return self.authenticate_with_password(
-                kwargs["username"], kwargs["password"]
+            # Check if this is basic auth or password auth
+            # If no other auth method is specified, assume password auth for token
+            return api_manager.authenticate_password(
+                kwargs["username"], kwargs["password"], full
             )
         elif "jwt_token" in kwargs:
-            return self.authenticate_with_jwt(kwargs["jwt_token"])
-        elif "user_id" in kwargs and "private_key" in kwargs:
-            return self.authenticate_with_private_key(
-                kwargs["user_id"], kwargs["private_key"]
-            )
+            return api_manager.authenticate_jwt(kwargs["jwt_token"], full)
         else:
             raise ConfigurationError(
                 "Invalid authentication parameters. Provide either "
-                "(username, password) or jwt_token or (user_id, private_key)"
+                "(username, password) for password auth, or jwt_token for JWT auth"
             )
 
-    def _set_token(self, token_response: TokenResponse):
-        """Set authentication token and related information."""
-        self._token = token_response.access_token
-        self._token_info = token_response
-
-        # Tokens are valid for 30 minutes from last use, but we set a conservative
-        # expiry
-        # The actual expiry is managed by the server and refreshed on each use
-        self._token_expires_at = time.time() + (30 * 60)  # 30 minutes
-
-    def refresh_token(self) -> TokenResponse:
+    def introspect_token(
+        self, token: Optional[str] = None, full: bool = False
+    ) -> AuthenticationResponse:
         """
-        Refresh the current authentication token.
+        Introspect an authentication token.
+
+        Args:
+            token: Token to introspect (uses current token if not specified)
+            full: Include additional user information
 
         Returns:
-            TokenResponse with refreshed token information
+            AuthenticationResponse with token information
 
         Raises:
-            AuthenticationError: If refresh fails or no token exists
+            AuthenticationError: If introspection fails or no token available
         """
-        if not self._token_info:
-            raise AuthenticationError("No existing token to refresh")
+        api_manager = self._get_api_manager()
+        token_to_introspect = token or api_manager.token
 
-        # Use the current token to get a new one (introspection)
-        response = self.client._make_request(
-            method="POST", endpoint="/auth/introspect", json_data={"token": self._token}
-        )
+        if not token_to_introspect:
+            raise AuthenticationError("No token to introspect")
 
-        # If introspection succeeds, the token is still valid
-        # In practice, Cordra handles token refresh automatically
-        refreshed_info = TokenResponse.from_dict(response)
-        self._set_token(refreshed_info)
+        return api_manager.introspect_token(token_to_introspect, full)
 
-        return refreshed_info
-
-    def revoke_token(self, token: Optional[str] = None) -> bool:
+    def revoke_token(self, token: Optional[str] = None) -> AuthenticationResponse:
         """
         Revoke an authentication token.
 
@@ -215,63 +623,37 @@ class AuthenticationManager:
             token: Token to revoke (uses current token if not specified)
 
         Returns:
-            True if successfully revoked
+            AuthenticationResponse indicating revocation status
 
         Raises:
-            AuthenticationError: If revocation fails
+            AuthenticationError: If revocation fails or no token-based auth
         """
-        token_to_revoke = token or self._token
-        if not token_to_revoke:
+        api_manager = self._get_api_manager()
+        if not api_manager.token:
             raise AuthenticationError("No token to revoke")
 
-        response = self.client._make_request(
-            method="POST", endpoint="/auth/revoke", json_data={"token": token_to_revoke}
-        )
+        token_to_revoke = token or api_manager.token
 
-        # Clear current token
-        self._token = None
-        self._token_info = None
-        self._token_expires_at = None
+        response = api_manager.revoke_token(token_to_revoke)
 
-        return response.get("active", False) is False
+        # Clear current token after successful revocation
+        if not response.active:
+            api_manager._token = None
 
-    def get_token_info(self) -> TokenResponse:
-        """
-        Get information about the current token.
+        return response
 
-        Returns:
-            TokenResponse with current token information
-
-        Raises:
-            AuthenticationError: If no token exists or introspection fails
-        """
-        if not self._token:
-            raise AuthenticationError("No active token")
-
-        response = self.client._make_request(
-            method="POST", endpoint="/auth/introspect", json_data={"token": self._token}
-        )
-
-        self._token_info = TokenResponse.from_dict(response)
-        return self._token_info
-
-    def ensure_authenticated(self):
-        """Ensure client is authenticated, refreshing token if necessary."""
-        if not self.is_authenticated:
-            if self._token_info:
-                # Try to refresh existing token
-                try:
-                    self.refresh_token()
-                except AuthenticationError:
-                    # Refresh failed, need new authentication
-                    raise AuthenticationError(
-                        "Token expired and could not be refreshed"
-                    )
-            else:
-                raise AuthenticationError("Not authenticated")
-
-    def clear_authentication(self):
+    def clear_authentication(self) -> None:
         """Clear all authentication information."""
-        self._token = None
-        self._token_info = None
-        self._token_expires_at = None
+        self._rest_auth.clear_authentication()
+        self._doip_auth.clear_authentication()
+
+    # Backward compatibility methods
+    def authenticate_with_password(
+        self, username: str, password: str
+    ) -> AuthenticationResponse:
+        """Legacy method - use authenticate() instead."""
+        return self.authenticate_password(username, password)
+
+    def authenticate_with_jwt(self, jwt_token: str) -> AuthenticationResponse:
+        """Legacy method - use authenticate() instead."""
+        return self.authenticate_jwt(jwt_token)

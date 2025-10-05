@@ -85,19 +85,42 @@ client = CordraClient("https://cordra.example.com", api_type="doip")
 
 ## Authentication
 
-The library supports multiple authentication methods:
+The library provides comprehensive authentication support for both REST and DOIP APIs with multiple authentication methods and standardized response formats.
 
-### Password Authentication
+### Authentication Methods
+
+#### Password Authentication (OAuth-style)
+Authenticate using username and password to obtain a bearer token:
+
 ```python
+# Basic usage
 client.authenticate(username="user", password="password")
+
+# With detailed response
+response = client.authenticate(username="user", password="password")
+print(f"Active: {response.active}")
+print(f"Username: {response.username}")
+print(f"User ID: {response.user_id}")
+print(f"Token: {response.access_token}")
 ```
 
-### JWT Token Authentication
+#### JWT Token Authentication
+Authenticate using an existing JWT token from an OAuth2/OIDC provider:
+
 ```python
+# Basic usage
 client.authenticate(jwt_token="eyJ0eXAi...")
+
+# With detailed response
+response = client.authenticate(jwt_token="eyJ0eXAi...")
+print(f"Active: {response.active}")
+print(f"Username: {response.username}")
 ```
 
-### Private Key Authentication
+#### Private Key Authentication
+Authenticate using a self-signed JWT. The public key must be stored in the cordra user object.
+The library can create a JWT token for you, if you provide it with the user's handle and a private key in JWK format.
+
 ```python
 private_key = {
     "kty": "RSA",
@@ -106,13 +129,211 @@ private_key = {
     "d": "your_private_exponent...",
     "p": "your_prime_factor_1...",
     "q": "your_prime_factor_2...",
-    "dp": "your_crt_exponent_1...",
-    "dq": "your_crt_exponent_2...",
-    "qi": "your_crt_coefficient..."
 }
 
+# Basic usage
 client.authenticate(user_id="user_id", private_key=private_key)
+
+# With detailed response
+response = client.authenticate(user_id="user_id", private_key=private_key)
+print(f"Active: {response.active}")
 ```
+
+**Important Notes:**
+
+1. **Public Key Storage**: Before using private key authentication, you must store the corresponding public key in Cordra:
+   - As a JWK in a Cordra user object with schema attribute `"auth": "publicKey"`
+   - Or in an HS_PUBKEY value on a Handle record
+
+2. **JWT Creation**: The library can create a token for you, as shown in the example above. For a demo on how to create a public key and a token based on the private key, see `/tools/create_jwt_token.py`
+
+3. **Required Claims**: `iss` (issuer), `exp` (expiration)
+4. **Optional Claims**: `jti` (JWT ID), `aud` (audience), `sub` (subject)
+5. **Security**: This method is more secure than passwords as no secrets are exchanged
+
+#### HTTP Basic Authentication
+Authenticate using HTTP Basic authentication (no token):
+
+```python
+# Basic usage - stores credentials for subsequent requests
+client.authenticate_basic(username="user", password="password")
+
+# With response information
+response = client.authenticate_basic(username="user", password="password")
+print(f"Active: {response.active}")
+print(f"Username: {response.username}")
+```
+
+### Standardized Response Format
+
+All authentication methods return an `AuthenticationResponse` object with the following structure:
+
+```python
+{
+    "active": bool,                    # Whether authentication was successful
+    "username": str | None,           # Username of authenticated user
+    "userId": str | None,             # User ID of authenticated user
+    "typesPermittedToCreate": [...],  # Types user can create (when full=True)
+    "groupIds": [...],                # Groups user belongs to (when full=True)
+    "access_token": str | None,       # Bearer token (for token-based auth)
+    "token_type": "Bearer"            # Token type (always "Bearer")
+}
+```
+
+### Session Management
+
+#### Checking Authentication Status
+Keep sessions alive and get up-to-date user information:
+
+```python
+# Check current authentication (REST API only)
+info = client.check_credentials()
+print(f"Active: {info.active}")
+print(f"Username: {info.username}")
+
+# Get full user information including permissions
+info = client.check_credentials(full=True)
+print(f"Types can create: {info.types_permitted_to_create}")
+print(f"Groups: {info.group_ids}")
+```
+
+#### Token Management
+Manage authentication tokens:
+
+```python
+# Introspect current token
+info = client.introspect_token()
+print(f"Token active: {info.active}")
+print(f"Username: {info.username}")
+
+# Introspect with full information
+info = client.introspect_token(full=True)
+print(f"Permissions: {info.types_permitted_to_create}")
+
+# Revoke current token
+result = client.logout()
+print(f"Logged out: {not result.active}")
+```
+
+### API-Specific Differences
+
+#### REST API Authentication
+- **Basic Auth**: Uses `/check-credentials` endpoint
+- **Token Auth**: Uses `/auth/token`, `/auth/introspect`, `/auth/revoke` endpoints
+- **Session Management**: `check_credentials()` method available
+
+#### DOIP API Authentication
+- **Basic Auth**: Uses `0.DOIP/Op.Hello` operation via `/doip` endpoint
+- **Token Auth**: Uses DOIP-specific endpoints via `/doip` endpoint (`20.DOIP/Op.Auth.Token`, `20.DOIP/Op.Auth.Introspect`, `20.DOIP/Op.Auth.Revoke`)
+- **Session Management**: `check_credentials()` method **not available** (use `introspect_token()` instead)
+
+### Error Handling
+
+Authentication failures raise `AuthenticationError`:
+
+```python
+from cordra import AuthenticationError
+
+try:
+    client.authenticate(username="wrong", password="wrong")
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+```
+
+### Advanced Configuration
+
+#### Custom Authentication Parameters
+All authentication methods support additional parameters:
+
+```python
+# Get full user information during authentication
+response = client.authenticate(
+    username="user",
+    password="password",
+    full=True  # Include types and groups
+)
+
+# Introspect with full information
+info = client.introspect_token(full=True)
+
+# Check credentials with full information
+info = client.check_credentials(full=True)
+```
+
+#### Authentication State
+Check authentication status:
+
+```python
+# Check if client is authenticated
+if client.is_authenticated():
+    print("Client is authenticated")
+else:
+    print("Client is not authenticated")
+
+# Get current authentication method
+if client.auth.token:
+    print("Using token authentication")
+elif client.auth.username and client.auth.password:
+    print("Using basic authentication")
+else:
+    print("Not authenticated")
+```
+
+### Examples by API Type
+
+#### REST API Example
+```python
+from cordra import CordraClient
+
+# Initialize REST client
+client = CordraClient("https://cordra.example.com", api_type="rest")
+
+# Authenticate with password
+response = client.authenticate(username="user", password="password")
+print(f"Authenticated as: {response.username}")
+
+# Check session and get permissions
+info = client.check_credentials(full=True)
+print(f"Can create: {info.types_permitted_to_create}")
+
+# Use the client for operations
+obj = client.create_object(type="Document", content={"title": "Test"})
+
+# Logout
+client.logout()
+```
+
+#### DOIP API Example
+```python
+from cordra import CordraClient
+
+# Initialize DOIP client
+client = CordraClient("https://cordra.example.com", api_type="doip")
+
+# Authenticate with password (uses DOIP-specific endpoints)
+response = client.authenticate(username="user", password="password")
+print(f"Authenticated as: {response.username}")
+
+# DOIP uses token introspection instead of check_credentials
+info = client.introspect_token(full=True)
+print(f"Can create: {info.types_permitted_to_create}")
+
+# Use the client for operations
+obj = client.create_object(type="Document", content={"title": "Test"})
+
+# Logout
+client.logout()
+```
+
+### Authentication Flow Summary
+
+1. **Choose API type** (REST or DOIP)
+2. **Authenticate** using preferred method
+3. **Check session** (REST only) or **introspect token** (both APIs)
+4. **Perform operations** with authenticated client
+5. **Logout** to clear authentication state
+
+For detailed API reference, see the :doc:`authentication` documentation.
 
 ## Working with Objects
 
